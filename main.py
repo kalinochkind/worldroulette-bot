@@ -53,7 +53,7 @@ class Bot:
 
     def punishUser(self, user):
         user = user.lower()
-        for i in list(self.map):
+        for i in sorted(self.map, key=lambda x:(self.map[x][1], x)):
             if self.map[i][0].lower() == user:
                 self.conquerCountry(i)
 
