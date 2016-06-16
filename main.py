@@ -8,6 +8,9 @@ import json
 import time
 import sys
 
+class CaptchaNeeded(Exception):
+    pass
+
 class Bot:
     host = 'http://worldroulette.ru/'
 
@@ -41,9 +44,8 @@ class Bot:
         self.getMapInfo()
         print('.', end='')
         sys.stdout.flush()
-        if not res.startswith('nocaptcha'):
-            print(res)
-            sys.exit()
+        if res.startswith('docaptcha'):
+            raise CaptchaNeeded
 
     def conquerCountry(self, country):
         print('Conquering', country)
@@ -59,18 +61,20 @@ class Bot:
 
 
 def main():
-    try:
-        login, password = open('accounts.txt').readlines()[0].split()
-    except FileNotFoundError:
-        login = input('Login: ')
-        password = input('Password: ')
-    b = Bot(login, password)
+    lp = [i.split() for i in open('accounts.txt') if i.strip()]
+    bots = [Bot(login, password) for login, password in lp]
     c = input('Enter countries or users to conquer: ').upper().split()
-    for i in c:
-        if len(i) == 2:
-            b.conquerCountry(i.upper())
-        else:
-            b.punishUser(i)
+    for b in bots:
+        print('Using account', b.login)
+        try:
+            for i in c:
+                if len(i) == 2:
+                    b.conquerCountry(i.upper())
+                else:
+                    b.punishUser(i)
+        except CaptchaNeeded:
+            print('Captcha needed for', b.login)
+            pass
 
 
 if __name__ == '__main__':
