@@ -25,7 +25,6 @@ class Bot:
         opts['username'] = login
         opts['password'] = password
         self.open('', opts)
-        self.getMapInfo()
 
     def open(self, uri, params=None):
         if params is None:
@@ -41,28 +40,38 @@ class Bot:
     def fight(self, country):
         res = self.open('post.php', {'Country': country, 'grecaptcharesponse': ''})
         time.sleep(6)
-        self.getMapInfo()
-        print('.', end='')
+        print(('*' if 'она была ухудшена' in res else '.'), end='')
         sys.stdout.flush()
         if res.startswith('docaptcha'):
             raise CaptchaNeeded
+        return 'Теперь территория принадлежит' in res or 'ваша территория' in res
 
     def conquerCountry(self, country):
-        print('Conquering', country)
-        while self.map[country][0].lower() != self.login:
-            self.fight(country)
+        self.getMapInfo()
+        if self.map[country][0] in logins:
+            return
+        print('Conquering {}, level {}'.format(country, self.map[country][1]))
+        while not self.fight(country):
+            pass
         print(country, 'conquered')
 
     def punishUser(self, user):
         user = user.lower()
+        self.getMapInfo()
         for i in sorted(self.map, key=lambda x:(self.map[x][1], x)):
             if self.map[i][0].lower() == user:
                 self.conquerCountry(i)
 
 
+logins = {}
+
 def main():
     lp = [i.split() for i in open('accounts.txt') if i.strip()]
     bots = [Bot(login, password) for login, password in lp]
+    global logins
+    logins = {i[0] for i in lp}
+    bots[0].getMapInfo()
+    print('Users on the map:' , ', '.join({i[0] for i in bots[0].map.values()}))
     c = input('Enter countries or users to conquer: ').upper().split()
     for b in bots:
         print('Using account', b.login)
@@ -72,6 +81,7 @@ def main():
                     b.conquerCountry(i.upper())
                 else:
                     b.punishUser(i)
+            break
         except CaptchaNeeded:
             print('Captcha needed for', b.login)
             pass
