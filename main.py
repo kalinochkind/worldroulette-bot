@@ -62,6 +62,9 @@ class Bot:
             if self.map[i][0].lower() == user:
                 self.conquerCountry(i)
 
+    def giveAll(self, user):
+        self.open('give.php', {'All': 'true', 'auid': user})
+
 
 logins = {}
 
@@ -85,6 +88,9 @@ def main():
         except CaptchaNeeded:
             print('Captcha needed for', b.login)
             pass
+    for b in bots[1:]:
+        b.giveAll(lp[0][0])
+        print('Sending everything from {} to {}'.format(b.login, lp[0][0]))
 
 
 if __name__ == '__main__':
