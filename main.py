@@ -50,7 +50,7 @@ class Bot:
         self.getMapInfo()
         if self.map[country][0] in logins:
             return
-        print('Conquering {}, level {}'.format(country, self.map[country][1]))
+        print('Conquering {} ({}), level {}'.format(country, countries[country], self.map[country][1]))
         while not self.fight(country):
             pass
         print(country, 'conquered')
@@ -67,6 +67,7 @@ class Bot:
 
 
 logins = {}
+countries = dict(i.strip().split(maxsplit=1) for i in open('countries.txt') if i)
 
 def main():
     lp = [i.split() for i in open('accounts.txt') if i.strip()]
