@@ -71,13 +71,19 @@ countries = dict(i.strip().split(maxsplit=1) for i in open('countries.txt') if i
 
 def main():
     lp = [i.split() for i in open('accounts.txt') if i.strip()]
-    bots = [Bot(login, password) for login, password in lp]
+    mainbot = Bot(lp[0][0], lp[0][1])
     global logins
     logins = {i[0] for i in lp}
-    bots[0].getMapInfo()
-    print('Users on the map:' , ', '.join({i[0] for i in bots[0].map.values()}))
+    mainbot.getMapInfo()
+    print('Users on the map:' , ', '.join({i[0] for i in mainbot.map.values()}))
     c = input('Enter countries or users to conquer: ').upper().split()
-    for b in bots:
+    bots = []
+    for login, password in lp:
+        if login == lp[0][0]:
+            b = mainbot
+        else:
+            b = Bot(login, password)
+        bots.append(b)
         print('Using account', b.login)
         try:
             for i in c:
