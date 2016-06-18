@@ -67,7 +67,7 @@ class Bot:
 
 
 logins = {}
-countries = dict(i.strip().split(maxsplit=1) for i in open('countries.txt') if i)
+countries = dict(i.strip().split(maxsplit=1) for i in open('countries.txt', encoding='utf-8') if i)
 
 def main():
     lp = [i.split() for i in open('accounts.txt') if i.strip()]
