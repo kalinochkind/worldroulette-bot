@@ -59,7 +59,7 @@ class Bot:
         user = user.lower()
         self.getMapInfo()
         for i in sorted(self.map, key=lambda x:(self.map[x][1], x)):
-            if self.map[i][0].lower() == user:
+            if (user == '*' and self.map[i][0].lower() not in logins) or self.map[i][0].lower() == user:
                 self.conquerCountry(i)
 
     def giveAll(self, user):
@@ -77,13 +77,11 @@ def main():
     mainbot.getMapInfo()
     print('Users on the map:' , ', '.join({i[0] for i in mainbot.map.values()}))
     c = input('Enter countries or users to conquer: ').upper().split()
-    bots = []
     for login, password in lp:
         if login == lp[0][0]:
             b = mainbot
         else:
             b = Bot(login, password)
-        bots.append(b)
         print('Using account', b.login)
         try:
             for i in c:
@@ -95,7 +93,8 @@ def main():
         except CaptchaNeeded:
             print('Captcha needed for', b.login)
             pass
-    for b in bots[1:]:
+    for login, password in lp:
+        b = Bot(login, password)
         b.giveAll(lp[0][0])
         print('Sending everything from {} to {}'.format(b.login, lp[0][0]))
 
