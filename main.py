@@ -44,7 +44,7 @@ class Bot:
         sys.stdout.flush()
         if res.startswith('docaptcha'):
             raise CaptchaNeeded
-        return 'Теперь территория принадлежит' in res or 'ваша территория' in res
+        return 'Теперь территория принадлежит' in res or 'ваша территория' in res or 'Теперь она принадлежит' in res
 
     def conquerCountry(self, country):
         self.getMapInfo()
