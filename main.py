@@ -73,7 +73,7 @@ logins = {}
 countries = dict(i.strip().split(maxsplit=1) for i in open('countries.txt', encoding='utf-8') if i)
 
 def main():
-    lp = [i.split() for i in open('accounts.txt') if i.strip()]
+    lp = [i.split() for i in open('accounts.txt') if i.strip() and i[0] != '#']
     mainbot = Bot(lp[0][0], lp[0][1])
     global logins
     logins = {i[0] for i in lp}
