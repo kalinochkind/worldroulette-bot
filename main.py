@@ -96,7 +96,7 @@ def main():
         except CaptchaNeeded:
             print('Captcha needed for', b.login)
             pass
-    for login, password in lp:
+    for login, password in lp[1:]:
         b = Bot(login, password)
         b.giveAll(lp[0][0])
         print('Sending everything from {} to {}'.format(b.login, lp[0][0]))
