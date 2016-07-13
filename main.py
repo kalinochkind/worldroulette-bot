@@ -27,10 +27,13 @@ class Bot:
         self.open('', opts)
 
     def open(self, uri, params=None):
-        if params is None:
-            return self.opener.open(self.host + uri).read().decode('utf-8')
-        else:
-            return self.opener.open(self.host + uri, urllib.parse.urlencode(params).encode('utf-8')).read().decode('utf-8')
+        try:
+            if params is None:
+                return self.opener.open(self.host + uri).read().decode('utf-8')
+            else:
+                return self.opener.open(self.host + uri, urllib.parse.urlencode(params).encode('utf-8')).read().decode('utf-8')
+        except Exception:
+            return ''
 
     def getMapInfo(self):
         pg = self.open('getUser.php').replace('\n', ' ').strip()
