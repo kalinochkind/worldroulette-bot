@@ -80,7 +80,9 @@ def main():
     global logins
     logins = {i[0] for i in lp}
     mainbot.getMapInfo()
-    print('Users on the map:' , ', '.join({i[0] for i in mainbot.map.values()}))
+    users = {i[0] for i in mainbot.map.values()}
+    users = [(i, sum(mainbot.map[j][0] == i for j in mainbot.map)) for i in users]
+    print('Users on the map:' , ', '.join('{} ({})'.format(*i) for i in sorted(users, key=lambda x:-x[1])))
     c = input('Enter countries or users to conquer: ').upper().split()
     for login, password in lp:
         if login == lp[0][0]:
