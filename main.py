@@ -45,9 +45,12 @@ class Bot:
         time.sleep(6)
         print(('*' if 'она была ухудшена' in res else '.'), end='')
         sys.stdout.flush()
+        ans = 'Теперь территория принадлежит' in res or 'ваша территория' in res or 'Теперь она принадлежит' in res
+        if ans:
+            print(country, 'conquered')
         if res.startswith('docaptcha'):
             raise CaptchaNeeded
-        return 'Теперь территория принадлежит' in res or 'ваша территория' in res or 'Теперь она принадлежит' in res
+        return ans
 
     def conquerCountry(self, country):
         self.getMapInfo()
@@ -56,7 +59,6 @@ class Bot:
         print('Conquering {} ({}), level {}'.format(country, countries[country], self.map[country][1]))
         while not self.fight(country):
             pass
-        print(country, 'conquered')
 
     def punishUser(self, user):
         user = user.lower()
