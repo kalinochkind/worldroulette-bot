@@ -49,7 +49,9 @@ class Bot:
         if ans:
             print(country, 'conquered')
         if res.startswith('docaptcha'):
-            raise CaptchaNeeded
+            print('Captcha needed, waiting')
+            time.sleep(10)
+            return self.fight(country)
         return ans
 
     def conquerCountry(self, country):
@@ -90,16 +92,12 @@ def main():
         else:
             b = Bot(login, password)
         print('Using account', b.login)
-        try:
-            for i in c:
-                if len(i) == 2:
-                    b.conquerCountry(i.upper())
-                else:
-                    b.punishUser(i)
-            break
-        except CaptchaNeeded:
-            print('Captcha needed for', b.login)
-            pass
+        for i in c:
+            if len(i) == 2:
+                b.conquerCountry(i.upper())
+            else:
+                b.punishUser(i)
+        break
     for login, password in lp[1:]:
         b = Bot(login, password)
         b.giveAll(lp[0][0])
