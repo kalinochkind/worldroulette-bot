@@ -38,7 +38,13 @@ class Bot:
     def getMapInfo(self):
         pg = self.open('getUser.php').replace('\n', ' ').strip()
         fractions, users, levels = [json.loads(i) for i in re.findall(r'({.+})S1G2@gaAVd({.+})Gk2kF91k@4({.+})', pg)[0]]
-        self.map = {i:(users[i],levels[i]) for i in users}
+        self.user_to_frac = {}
+        for i in fractions:
+            frac = '<none>'
+            if fractions[i]:
+                frac = fractions[i].split(':', maxsplit=1)[1].strip()
+            self.user_to_frac[users[i]] = frac
+        self.map = {i:(users[i],levels[i],fractions[i]) for i in users}
 
     def fight(self, country, silent=False):
         res = self.open('post.php', {'Country': country, 'grecaptcharesponse': ''})
@@ -84,8 +90,8 @@ def main():
     logins = {i[0] for i in lp}
     mainbot.getMapInfo()
     users = {i[0] for i in mainbot.map.values()}
-    users = [(i, sum(mainbot.map[j][0] == i for j in mainbot.map)) for i in users]
-    print('Users on the map:' , ', '.join('{} ({})'.format(*i) for i in sorted(users, key=lambda x:-x[1])))
+    users = [(i, sum(mainbot.map[j][0] == i for j in mainbot.map), mainbot.user_to_frac[i]) for i in users]
+    print('Users on the map:' , ', '.join('{0}:{2} ({1})'.format(*i) for i in sorted(users, key=lambda x:-x[1])))
     c = input('Enter countries or users to conquer: ').upper().split()
     for login, password in lp:
         if login == lp[0][0]:
