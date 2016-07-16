@@ -80,7 +80,7 @@ class Bot:
     def conquerCountry(self, country):
         if self.map[country][0].lower() == self.login:
             return
-        print('Conquering {} ({}), level {}'.format(country, countries[country], self.map[country][1]))
+        print('Conquering {} ({}), level {}, belongs to {}'.format(country, countries[country], self.map[country][1], self.map[country][0]))
         while not self.fight(country):
             pass
 
