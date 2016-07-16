@@ -67,7 +67,7 @@ class Bot:
         tmap = sorted(self.map, key=lambda x:(self.map[x][1], x))
         while True:
             for name in tmap:
-                if name.lower() in object_list or self.map[name][0].lower() in object_list:
+                if name.lower() in object_list or self.map[name][0].lower() in object_list or '*' in object_list:
                     if self.map[name][0].lower() == self.login:
                         continue
                     self.conquerCountry(name)
@@ -83,13 +83,6 @@ class Bot:
         print('Conquering {} ({}), level {}, belongs to {}'.format(country, countries[country], self.map[country][1], self.map[country][0]))
         while not self.fight(country):
             pass
-
-    def punishUser(self, user):
-        user = user.lower()
-        self.getMapInfo()
-        for i in sorted(self.map, key=lambda x:(self.map[x][1], x)):
-            if (user == '*' and self.map[i][0].lower() != login) or self.map[i][0].lower() == user:
-                self.conquerCountry(i)
 
     def giveAll(self, user):
         self.open('give.php', {'All': 'true', 'auid': user})
