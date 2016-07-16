@@ -63,7 +63,7 @@ class Bot:
 
     def conquerCountry(self, country):
         self.getMapInfo()
-        if self.map[country][0] in logins:
+        if self.map[country][0].lower() == self.login:
             return
         print('Conquering {} ({}), level {}'.format(country, countries[country], self.map[country][1]))
         while not self.fight(country):
@@ -73,42 +73,28 @@ class Bot:
         user = user.lower()
         self.getMapInfo()
         for i in sorted(self.map, key=lambda x:(self.map[x][1], x)):
-            if (user == '*' and self.map[i][0].lower() not in logins) or self.map[i][0].lower() == user:
+            if (user == '*' and self.map[i][0].lower() != login) or self.map[i][0].lower() == user:
                 self.conquerCountry(i)
 
     def giveAll(self, user):
         self.open('give.php', {'All': 'true', 'auid': user})
 
 
-logins = {}
 countries = dict(i.strip().split(maxsplit=1) for i in open('countries.txt', encoding='utf-8') if i)
 
 def main():
     lp = [i.split() for i in open('accounts.txt') if i.strip() and i[0] != '#']
     mainbot = Bot(lp[0][0], lp[0][1])
-    global logins
-    logins = {i[0] for i in lp}
     mainbot.getMapInfo()
     users = {i[0] for i in mainbot.map.values()}
     users = [(i, sum(mainbot.map[j][0] == i for j in mainbot.map), mainbot.user_to_frac[i]) for i in users]
     print('Users on the map:' , ', '.join('{0}:{2} ({1})'.format(*i) for i in sorted(users, key=lambda x:-x[1])))
     c = input('Enter countries or users to conquer: ').upper().split()
-    for login, password in lp:
-        if login == lp[0][0]:
-            b = mainbot
+    for i in c:
+        if len(i) == 2:
+            mainbot.conquerCountry(i.upper())
         else:
-            b = Bot(login, password)
-        print('Using account', b.login)
-        for i in c:
-            if len(i) == 2:
-                b.conquerCountry(i.upper())
-            else:
-                b.punishUser(i)
-        break
-    for login, password in lp[1:]:
-        b = Bot(login, password)
-        b.giveAll(lp[0][0])
-        print('Sending everything from {} to {}'.format(b.login, lp[0][0]))
+            mainbot.punishUser(i)
 
 
 if __name__ == '__main__':
