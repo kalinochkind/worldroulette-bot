@@ -25,6 +25,7 @@ class Bot:
         opts['username'] = login
         opts['password'] = password
         self.open('', opts)
+        self.getMapInfo()
 
     def open(self, uri, params=None):
         try:
@@ -61,8 +62,22 @@ class Bot:
             print(country, 'conquered')
         return ans
 
-    def conquerCountry(self, country):
+    def conquer(self, object_list):
         self.getMapInfo()
+        tmap = sorted(self.map, key=lambda x:(self.map[x][1], x))
+        while True:
+            for name in tmap:
+                if name.lower() in object_list or self.map[name][0].lower() in object_list:
+                    if self.map[name][0].lower() == self.login:
+                        continue
+                    self.conquerCountry(name)
+                    self.getMapInfo()
+                    tmap = sorted(self.map, key=lambda x:(self.map[x][1], x))
+                    break
+            else:
+                break
+
+    def conquerCountry(self, country):
         if self.map[country][0].lower() == self.login:
             return
         print('Conquering {} ({}), level {}'.format(country, countries[country], self.map[country][1]))
@@ -85,16 +100,11 @@ countries = dict(i.strip().split(maxsplit=1) for i in open('countries.txt', enco
 def main():
     lp = [i.split() for i in open('accounts.txt') if i.strip() and i[0] != '#']
     mainbot = Bot(lp[0][0], lp[0][1])
-    mainbot.getMapInfo()
     users = {i[0] for i in mainbot.map.values()}
     users = [(i, sum(mainbot.map[j][0] == i for j in mainbot.map), mainbot.user_to_frac[i]) for i in users]
     print('Users on the map:' , ', '.join('{0}:{2} ({1})'.format(*i) for i in sorted(users, key=lambda x:-x[1])))
-    c = input('Enter countries or users to conquer: ').upper().split()
-    for i in c:
-        if len(i) == 2:
-            mainbot.conquerCountry(i.upper())
-        else:
-            mainbot.punishUser(i)
+    c = input('Enter countries or users to conquer: ').lower().split()
+    mainbot.conquer(c)
 
 
 if __name__ == '__main__':
