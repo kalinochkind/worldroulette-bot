@@ -40,18 +40,19 @@ class Bot:
         fractions, users, levels = [json.loads(i) for i in re.findall(r'({.+})S1G2@gaAVd({.+})Gk2kF91k@4({.+})', pg)[0]]
         self.map = {i:(users[i],levels[i]) for i in users}
 
-    def fight(self, country):
+    def fight(self, country, silent=False):
         res = self.open('post.php', {'Country': country, 'grecaptcharesponse': ''})
         time.sleep(6)
+        if 'Вы не ввели капчу' in res:
+            if not silent:
+                print('[CAPTCHA]', end='')
+                sys.stdout.flush()
+            return self.fight(country, True)
         print(('*' if 'она была ухудшена' in res else '.'), end='')
         sys.stdout.flush()
         ans = 'Теперь территория принадлежит' in res or 'ваша территория' in res or 'Теперь она принадлежит' in res
         if ans:
             print(country, 'conquered')
-        if res.startswith('docaptcha'):
-            print('Captcha needed, waiting')
-            time.sleep(10)
-            return self.fight(country)
         return ans
 
     def conquerCountry(self, country):
