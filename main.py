@@ -8,8 +8,7 @@ import json
 import time
 import sys
 
-class CaptchaNeeded(Exception):
-    pass
+ROLL_INTERVAL = 5
 
 class Bot:
     host = 'http://worldroulette.ru/'
@@ -49,7 +48,7 @@ class Bot:
 
     def fight(self, country, silent=False):
         res = self.open('post.php', {'Country': country, 'grecaptcharesponse': ''})
-        time.sleep(6)
+        time.sleep(ROLL_INTERVAL)
         if 'Вы не ввели капчу' in res:
             if not silent:
                 print('[CAPTCHA]', end='')
