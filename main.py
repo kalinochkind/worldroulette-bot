@@ -9,23 +9,29 @@ import time
 import sys
 import threading
 import queue
-ROLL_INTERVAL = 5
+ROLL_INTERVAL = 6
 
 
 class Bot:
     host = 'http://worldroulette.ru/'
 
-    def __init__(self, login, password):
+    def __init__(self, login, password, no_proxy=False):
         self.login = login.lower()
-        cj = CookieJar()
-        self.opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
+        cj = urllib.request.HTTPCookieProcessor(CookieJar())
+        if proxy and not no_proxy:
+            self.opener = urllib.request.build_opener(cj, urllib.request.ProxyHandler({'http': proxy[0]}))
+            print('Using proxy', proxy[0], 'for', login)
+            proxy.pop(0)
+        else:
+            self.opener = urllib.request.build_opener(cj)
         self.opener.addheaders = [('User-Agent', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/53.0.2763.0 Safari/537.36')]
         pg = self.open('')
         opts = dict(re.findall(r'<input type="hidden" name="([^"]+)" value="([^"]+)" />', pg))
         opts['Submit'] = ''
         opts['username'] = login
         opts['password'] = password
-        self.open('', opts)
+        if not self.open('', opts):
+            self.opener = None
 
     def open(self, uri, params=None):
         try:
@@ -33,12 +39,17 @@ class Bot:
                 return self.opener.open(self.host + uri).read().decode('utf-8')
             else:
                 return self.opener.open(self.host + uri, urllib.parse.urlencode(params).encode('utf-8')).read().decode('utf-8')
-        except Exception:
+        except Exception as e:
+            print(e)
             return ''
 
     def getMapInfo(self):
         pg = self.open('getUser.php').replace('\n', ' ').strip()
-        fractions, users, levels = [json.loads(i) for i in re.findall(r'({.+})S1G2@gaAVd({.+})Gk2kF91k@4({.+})', pg)[0]]
+        try:
+            fractions, users, levels = [json.loads(i) for i in re.findall(r'({.+})S1G2@gaAVd({.+})Gk2kF91k@4({.+})', pg)[0]]
+        except IndexError:
+            print(self.login, 'failed')
+            return
         self.user_to_frac = {}
         for i in fractions:
             frac = '<none>'
@@ -55,6 +66,8 @@ class Bot:
                 print('CAPTCHA FOR', self.login)
                 sys.stdout.flush()
             return self.fight(country, True)
+        if 'Слишком быстро' in res:
+            print('{}: too fast'.format(self.login))
         sys.stdout.flush()
         ans = 'Теперь территория принадлежит' in res or 'ваша территория' in res or 'Теперь она принадлежит' in res
         if ans:
@@ -74,7 +87,7 @@ class Bot:
 
 class BotManager:
     def __init__(self, lp):
-        self.bots = [Bot(l, p) for l, p in lp]
+        self.bots = [Bot(l, p, l==lp[0][0]) for l, p in lp]
         self.bots[0].getMapInfo()
         self.logins = [i[0].lower() for i in lp]
         self.queue = queue.Queue(1)
@@ -86,6 +99,7 @@ class BotManager:
         threads = [threading.Thread(target=lambda i=i:self.work(i, self.bots[0].login)) for i in self.bots]
         for i in threads:
             i.start()
+            time.sleep(2)
         self.bots[0].getMapInfo()
         tmap = self.sorted_map()
         for name in tmap:
@@ -95,9 +109,12 @@ class BotManager:
                 self.queue.put(name)
                 self.bots[0].getMapInfo()
         for i in self.bots:
-            self.queue.put(None)
+            if i.opener is not None:
+                self.queue.put(None)
 
     def work(self, bot, sendto):
+        if bot.opener is None:
+            return
         while True:
             name = self.queue.get()
             if name is None:
@@ -111,6 +128,10 @@ class BotManager:
             bot.conquerCountry(name)
 
 countries = dict(i.strip().split(maxsplit=1) for i in open('countries.txt', encoding='utf-8') if i)
+try:
+    proxy = open('proxy.txt').read().strip().splitlines()
+except Exception:
+    proxy = []
 
 def main():
     lp = [i.split() for i in open('accounts.txt') if i.strip() and i[0] != '#']
