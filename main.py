@@ -7,8 +7,10 @@ import re
 import json
 import time
 import sys
-
+import threading
+import queue
 ROLL_INTERVAL = 5
+
 
 class Bot:
     host = 'http://worldroulette.ru/'
@@ -24,7 +26,6 @@ class Bot:
         opts['username'] = login
         opts['password'] = password
         self.open('', opts)
-        self.getMapInfo()
 
     def open(self, uri, params=None):
         try:
@@ -51,52 +52,72 @@ class Bot:
         time.sleep(ROLL_INTERVAL)
         if 'Вы не ввели капчу' in res:
             if not silent:
-                print('[CAPTCHA]', end='')
+                print('CAPTCHA FOR', self.login)
                 sys.stdout.flush()
             return self.fight(country, True)
-        print(('*' if 'она была ухудшена' in res else '.'), end='')
         sys.stdout.flush()
         ans = 'Теперь территория принадлежит' in res or 'ваша территория' in res or 'Теперь она принадлежит' in res
         if ans:
-            print(country, 'conquered')
+            print(self.login + ':', country, 'conquered')
         return ans
-
-    def conquer(self, object_list):
-        self.getMapInfo()
-        tmap = sorted(self.map, key=lambda x:(self.map[x][1], x))
-        while True:
-            for name in tmap:
-                if name.lower() in object_list or self.map[name][0].lower() in object_list or '*' in object_list:
-                    if self.map[name][0].lower() == self.login:
-                        continue
-                    self.conquerCountry(name)
-                    self.getMapInfo()
-                    tmap = sorted(self.map, key=lambda x:(self.map[x][1], x))
-                    break
-            else:
-                break
 
     def conquerCountry(self, country):
         if self.map[country][0].lower() == self.login:
             return
-        print('Conquering {} ({}), level {}, belongs to {}'.format(country, countries[country], self.map[country][1], self.map[country][0]))
+        print('{}: conquering {} ({}), level {}, belongs to {}'.format(self.login, country, countries[country], self.map[country][1], self.map[country][0]))
         while not self.fight(country):
             pass
 
     def giveAll(self, user):
-        self.open('give.php', {'All': 'true', 'auid': user})
+        if self.login != user:
+            self.open('give.php', {'All': 'true', 'auid': user})
 
+class BotManager:
+    def __init__(self, lp):
+        self.bots = [Bot(l, p) for l, p in lp]
+        self.bots[0].getMapInfo()
+        self.logins = [i[0].lower() for i in lp]
+        self.queue = queue.Queue(1)
+
+    def sorted_map(self):
+        return sorted(self.bots[0].map, key=lambda x:(self.bots[0].map[x][1], x))
+
+    def conquer(self, object_list):
+        threads = [threading.Thread(target=lambda i=i:self.work(i, self.bots[0].login)) for i in self.bots]
+        for i in threads:
+            i.start()
+        self.bots[0].getMapInfo()
+        tmap = self.sorted_map()
+        for name in tmap:
+            if name.lower() in object_list or self.bots[0].map[name][0].lower() in object_list or '*' in object_list:
+                if self.bots[0].map[name][0].lower() in self.logins:
+                    continue
+                self.queue.put(name)
+                self.bots[0].getMapInfo()
+        for i in self.bots:
+            self.queue.put(None)
+
+    def work(self, bot, sendto):
+        while True:
+            name = self.queue.get()
+            if name is None:
+                bot.giveAll(sendto)
+                return
+            bot.getMapInfo()
+            bot.conquerCountry(name)
 
 countries = dict(i.strip().split(maxsplit=1) for i in open('countries.txt', encoding='utf-8') if i)
 
 def main():
     lp = [i.split() for i in open('accounts.txt') if i.strip() and i[0] != '#']
-    mainbot = Bot(lp[0][0], lp[0][1])
+    logins = {i[0].lower() for i in lp}
+    bm = BotManager(lp)
+    mainbot = bm.bots[0]
     users = {i[0] for i in mainbot.map.values()}
     users = [(i, sum(mainbot.map[j][0] == i for j in mainbot.map), mainbot.user_to_frac[i]) for i in users]
     print('Users on the map:' , ', '.join('{0}:{2} ({1})'.format(*i) for i in sorted(users, key=lambda x:-x[1])))
     c = input('Enter countries or users to conquer: ').lower().split()
-    mainbot.conquer(c)
+    bm.conquer(c)
 
 
 if __name__ == '__main__':
