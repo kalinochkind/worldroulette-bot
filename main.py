@@ -101,7 +101,11 @@ class BotManager:
         while True:
             name = self.queue.get()
             if name is None:
-                bot.giveAll(sendto)
+                bot.getMapInfo()
+                for i in bot.map.values():
+                    if i[0].lower() == bot.login:
+                        bot.giveAll(sendto)
+                        return
                 return
             bot.getMapInfo()
             bot.conquerCountry(name)
