@@ -60,11 +60,11 @@ class Bot:
 
     def fight(self, country, silent=False):
         res = self.open('post.php', {'Country': country, 'grecaptcharesponse': ''})
-        time.sleep(ROLL_INTERVAL)
         if 'Вы не ввели капчу' in res:
             if not silent:
                 print('CAPTCHA FOR', self.login)
                 sys.stdout.flush()
+            time.sleep(ROLL_INTERVAL)
             return self.fight(country, True)
         if 'Слишком быстро' in res:
             print('{}: too fast'.format(self.login))
@@ -72,6 +72,7 @@ class Bot:
         ans = 'Теперь территория принадлежит' in res or 'ваша территория' in res or 'Теперь она принадлежит' in res
         if ans:
             print(self.login + ':', country, 'conquered')
+        time.sleep(ROLL_INTERVAL)
         return ans
 
     def conquerCountry(self, country):
