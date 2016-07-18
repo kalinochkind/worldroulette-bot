@@ -33,6 +33,12 @@ class Bot:
         if not self.open('', opts):
             self.opener = None
 
+    def logout(self):
+        pg = self.open('')
+        opts = {i:j for i,j in re.findall(r'<input type="hidden" name="([^"]+)" value="([^"]+)" />', pg) if '_' not in i}
+        opts['Submit'] = 'Выйти'
+        self.open('', opts)
+
     def open(self, uri, params=None):
         try:
             if params is None:
@@ -124,7 +130,9 @@ class BotManager:
                 for i in bot.map.values():
                     if i[0].lower() == bot.login:
                         bot.giveAll(sendto)
+                        bot.logout()
                         return
+                bot.logout()
                 return
             bot.getMapInfo()
             bot.conquerCountry(name)
