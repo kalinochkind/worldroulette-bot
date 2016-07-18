@@ -120,6 +120,7 @@ class BotManager:
             name = self.queue.get()
             if name is None:
                 bot.getMapInfo()
+                print(bot.login, 'finished')
                 for i in bot.map.values():
                     if i[0].lower() == bot.login:
                         bot.giveAll(sendto)
