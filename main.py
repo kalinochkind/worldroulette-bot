@@ -18,12 +18,12 @@ class Bot:
     def __init__(self, login, password, no_proxy=False):
         self.login = login.lower()
         cj = urllib.request.HTTPCookieProcessor(CookieJar())
-        if proxy and not no_proxy:
+        if no_proxy:
+            self.opener = urllib.request.build_opener(cj)
+        else:
             self.opener = urllib.request.build_opener(cj, urllib.request.ProxyHandler({'http': proxy[0]}))
             print('Using proxy', proxy[0], 'for', login)
             proxy.pop(0)
-        else:
-            self.opener = urllib.request.build_opener(cj)
         self.opener.addheaders = [('User-Agent', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/53.0.2763.0 Safari/537.36')]
         pg = self.open('')
         opts = dict(re.findall(r'<input type="hidden" name="([^"]+)" value="([^"]+)" />', pg))
@@ -137,6 +137,9 @@ except Exception:
 
 def main():
     lp = [i.split() for i in open('accounts.txt') if i.strip() and i[0] != '#']
+    if len(proxy) + 1 < len(lp):
+        print('Not enough proxies')
+        sys.exit(1)
     logins = {i[0].lower() for i in lp}
     bm = BotManager(lp)
     mainbot = bm.bots[0]
