@@ -17,21 +17,30 @@ class Bot:
 
     def __init__(self, login, password, no_proxy=False):
         self.login = login.lower()
-        cj = urllib.request.HTTPCookieProcessor(CookieJar())
+        self.password = password
         if no_proxy:
-            self.opener = urllib.request.build_opener(cj)
+            self.proxy = None
         else:
-            self.opener = urllib.request.build_opener(cj, urllib.request.ProxyHandler({'http': proxy[0]}))
+            self.proxy = proxy[0]
             print('Using proxy', proxy[0], 'for', login)
             proxy.pop(0)
+        self.auth()
+
+    def auth(self):
+        cj = urllib.request.HTTPCookieProcessor(CookieJar())
+        if self.proxy is None:
+            self.opener = urllib.request.build_opener(cj)
+        else:
+            self.opener = urllib.request.build_opener(cj, urllib.request.ProxyHandler({'http': self.proxy}))
         self.opener.addheaders = [('User-Agent', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/53.0.2763.0 Safari/537.36')]
         pg = self.open('')
         opts = dict(re.findall(r'<input type="hidden" name="([^"]+)" value="([^"]+)" />', pg))
         opts['Submit'] = ''
-        opts['username'] = login
-        opts['password'] = password
+        opts['username'] = self.login
+        opts['password'] = self.password
         if not self.open('', opts):
             self.opener = None
+        self.rolls_since_captcha = 50
 
     def logout(self):
         pg = self.open('')
@@ -69,16 +78,24 @@ class Bot:
         if 'Вы не ввели капчу' in res:
             if not silent:
                 print('CAPTCHA FOR', self.login)
+                if self.rolls_since_captcha < 40:
+                    self.logout()
+                    self.auth()
+                    print(self.login, 'relogin')
                 sys.stdout.flush()
             time.sleep(ROLL_INTERVAL)
+            self.rolls_since_captcha = 0
             return self.fight(country, True)
-        if 'Слишком быстро' in res:
+        if silent:
+            print('SOLVED FOR', self.login)
+        elif 'Слишком быстро' in res:
             print('{}: too fast'.format(self.login))
         sys.stdout.flush()
         ans = 'Теперь территория принадлежит' in res or 'ваша территория' in res or 'Теперь она принадлежит' in res
         if ans:
             print(self.login + ':', country, 'conquered')
         time.sleep(ROLL_INTERVAL)
+        self.rolls_since_captcha += 1
         return ans
 
     def conquerCountry(self, country):
