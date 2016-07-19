@@ -55,7 +55,7 @@ class Bot:
             else:
                 return self.opener.open(self.host + uri, urllib.parse.urlencode(params).encode('utf-8')).read().decode('utf-8')
         except Exception as e:
-            print(e)
+            print(self.login + ':', e)
             return ''
 
     def getMapInfo(self):
