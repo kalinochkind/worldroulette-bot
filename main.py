@@ -13,7 +13,7 @@ ROLL_INTERVAL = 6
 
 
 class Bot:
-    host = 'http://worldroulette.ru/'
+    host = 'https://worldroulette.ru/'
 
     def __init__(self, login, password, no_proxy=False):
         self.login = login.lower()
