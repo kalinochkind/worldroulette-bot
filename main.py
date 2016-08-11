@@ -166,6 +166,11 @@ def main():
         print('Not enough proxies')
         sys.exit(1)
     logins = {i[0].lower() for i in lp}
+    try:
+        urllib.request.urlopen(Bot.host)
+    except urllib.error.HTTPError:
+        print('The server is down')
+        sys.exit(2)
     bm = BotManager(lp)
     mainbot = bm.bots[0]
     users = {i[0] for i in mainbot.map.values()}
