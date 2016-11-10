@@ -1,15 +1,15 @@
 #!/usr/bin/python3
 
-import urllib.request
-import urllib.parse
-from http.cookiejar import CookieJar
+import requests
+import hyper.contrib
 import re
 import json
 import time
 import sys
 import threading
 import queue
-ROLL_INTERVAL = 6
+ROLL_INTERVAL = 5
+USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/53.0.2763.0 Safari/537.36'
 
 
 class Bot:
@@ -27,19 +27,12 @@ class Bot:
         self.auth()
 
     def auth(self):
-        cj = urllib.request.HTTPCookieProcessor(CookieJar())
-        if self.proxy is None:
-            self.opener = urllib.request.build_opener(cj)
-        else:
-            self.opener = urllib.request.build_opener(cj, urllib.request.ProxyHandler({'http': self.proxy}))
-        self.opener.addheaders = [('User-Agent', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/53.0.2763.0 Safari/537.36')]
+        if self.proxy:
+            print('Proxies are not supported yet')
+        self.opener = requests.session()
+        self.opener.mount(self.host, hyper.contrib.HTTP20Adapter())
+        self.opener.cookies['session'] = self.password
         pg = self.open('')
-        opts = dict(re.findall(r'<input type="hidden" name="([^"]+)" value="([^"]+)" />', pg))
-        opts['Submit'] = ''
-        opts['username'] = self.login
-        opts['password'] = self.password
-        if not self.open('', opts):
-            self.opener = None
         self.rolls_since_captcha = 50
 
     def logout(self):
@@ -48,55 +41,67 @@ class Bot:
         opts['Submit'] = 'Выйти'
         self.open('', opts)
 
+    def genCode(self, country):
+        a = 'rand' + country + '0'
+        b = 0
+        for i in a:
+            b *= 31
+            b += ord(i)
+            if b < 0:
+                b += 2**32
+            b %= 2**32
+        return {'a': b, 'b': 0}
+
     def open(self, uri, params=None):
+        headers = {'Connection': None, 'User-agent': USER_AGENT}
         try:
             if params is None:
-                return self.opener.open(self.host + uri, timeout=10).read().decode('utf-8')
+                resp = self.opener.get(self.host + uri, headers=headers)
             else:
-                return self.opener.open(self.host + uri, urllib.parse.urlencode(params).encode('utf-8'), timeout=10).read().decode('utf-8')
+                if isinstance(params, str):
+                    headers['Content-type'] = 'application/json'
+                resp = self.opener.post(self.host + uri, headers=headers, data=params)
+            return resp.text
         except Exception as e:
-            print(self.login + ':', e)
-            return ''
+            self.auth()
+            return self.open(uri, params)
 
     def getMapInfo(self):
-        pg = self.open('getUser.php').replace('\n', ' ').strip()
-        try:
-            fractions, users, levels = [json.loads(i) for i in re.findall(r'({.+})S1G2@gaAVd({.+})Gk2kF91k@4({.+})', pg)[0]]
-        except IndexError:
-            print(self.login, 'failed')
-            return
+        pg = json.loads(self.open('gethint', {}).replace('\n', ' ').strip())
         self.user_to_frac = {}
-        for i in fractions:
-            frac = '<none>'
-            if fractions[i]:
-                frac = fractions[i].split(':', maxsplit=1)[1].strip()
-            self.user_to_frac[users[i]] = frac
-        self.map = {i:(users[i],levels[i],fractions[i]) for i in users}
+        self.map = {}
+        for i in pg:
+            self.user_to_frac[pg[i]['User']] = pg[i]['Faction'] or '<none>'
+            self.map[i] = (pg[i]['User'], pg[i]['sp'], pg[i]['Faction'] or '<none>')
 
-    def fight(self, country, silent=False):
-        res = self.open('post.php', {'Country': country, 'grecaptcharesponse': ''})
-        if 'Вы не ввели капчу' in res:
-            if not silent:
-                print('CAPTCHA FOR', self.login)
-                if self.rolls_since_captcha < 40:
-                    self.logout()
-                    self.auth()
-                    print(self.login, 'relogin')
-                sys.stdout.flush()
+    def fight(self, country, last_error=''):
+        try:
+            d = self.genCode(country)
+            d['target'] = country
+            d['captcha'] = ''
+            res = self.open('roll', json.dumps(d))
             time.sleep(ROLL_INTERVAL)
-            self.rolls_since_captcha = 0
-            return self.fight(country, True)
-        if silent:
-            print('SOLVED FOR', self.login)
-        elif 'Слишком быстро' in res:
-            print('{}: too fast'.format(self.login))
-        sys.stdout.flush()
-        ans = 'Теперь территория принадлежит' in res or 'ваша территория' in res or 'Теперь она принадлежит' in res
-        if ans:
-            print(self.login + ':', country, 'conquered')
-        time.sleep(ROLL_INTERVAL)
-        self.rolls_since_captcha += 1
-        return ans
+            if not res:
+                return self.fight(country)
+            res = json.loads(res)
+            if res['result'] == 'success':
+                if 'вы успешно захватили' in res['data']:
+                    print('Conquered')
+                    return True
+                else:
+                    print('*', end='', flush=True)
+                    return False
+            elif res['result'] == 'fail':
+                print('.', end='', flush=True)
+                return False
+            elif res['result'] == 'error':
+                if res['data'] != last_error and res['data'] != 'Подождите немного!':
+                    print('[{}]'.format(res['data']), end='', flush=True)
+                return self.fight(country, res['data'])
+        except Exception as e:
+            print(e)
+            time.sleep(1)
+            return False
 
     def conquerCountry(self, country):
         if self.map[country][0].lower() == self.login:
@@ -146,7 +151,7 @@ class BotManager:
                 print(bot.login, 'finished')
                 for i in bot.map.values():
                     if i[0].lower() == bot.login:
-                        bot.giveAll(sendto)
+                        #bot.giveAll(sendto)
                         bot.logout()
                         return
                 bot.logout()
@@ -166,11 +171,6 @@ def main():
         print('Not enough proxies')
         sys.exit(1)
     logins = {i[0].lower() for i in lp}
-    try:
-        urllib.request.urlopen(Bot.host)
-    except urllib.error.HTTPError:
-        print('The server is down')
-        sys.exit(2)
     bm = BotManager(lp)
     mainbot = bm.bots[0]
     users = {i[0] for i in mainbot.map.values()}
