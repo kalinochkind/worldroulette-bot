@@ -20,7 +20,7 @@ class Bot:
         try:
             self.login = json.loads(self.open('getthis', {}))['name']
             self.getMapInfo()
-        except Exception:
+        except Exception as e:
             print('The server is down')
             sys.exit(1)
 
@@ -48,26 +48,31 @@ class Bot:
 
     def open(self, uri, params=None):
         headers = {'Connection': None, 'User-agent': USER_AGENT}
-        try:
-            if params is None:
-                resp = self.opener.get(self.host + uri, headers=headers)
-            else:
-                if isinstance(params, str):
-                    headers['Content-type'] = 'application/json'
-                resp = self.opener.post(self.host + uri, headers=headers, data=params)
-            return resp.text
-        except Exception as e:
-            print(e)
-            self.auth()
-            return ''
+        for i in range(10):
+            try:
+                if params is None:
+                    resp = self.opener.get(self.host + uri, headers=headers)
+                else:
+                    if isinstance(params, str):
+                        headers['Content-type'] = 'application/json'
+                    resp = self.opener.post(self.host + uri, headers=headers, data=params)
+                return resp.text
+            except Exception as e:
+                time.sleep(1)
+                self.auth()
+        return ''
 
     def getMapInfo(self):
-        pg = json.loads(self.open('gethint', {}).replace('\n', ' ').strip())
-        self.user_to_frac = {}
+        pg = json.loads(self.open('gethint', {}))
         self.map = {}
         for i in pg:
-            self.user_to_frac[pg[i]['User']] = pg[i]['Faction'] or '<none>'
             self.map[i] = (pg[i]['User'], pg[i]['sp'], pg[i]['Faction'] or '<none>', float(pg[i]['relsize']))
+
+    def getPlayerList(self):
+        res = self.open('getplayers')
+        pg = json.loads(res)
+        all_users = {i[0] for i in self.map.values()}
+        return [i for i in pg if i['name'] in all_users]
 
     def fight(self, country, last_error=''):
         try:
@@ -119,10 +124,13 @@ countries = dict(i.strip().split(maxsplit=1) for i in open('countries.txt', enco
 def main():
     session = open('accounts.txt').read().strip()
     bot = Bot(session)
-    users = {i[0] for i in bot.map.values()}
-    users = [(i, sum(bot.map[j][0] == i for j in bot.map), bot.user_to_frac[i]) for i in users]
-    print('Users on the map:' , ', '.join('{0}:{2} ({1})'.format(*i) for i in sorted(users, key=lambda x:-x[1])))
+    users = bot.getPlayerList()
+    users = [(i['name'], sum(bot.map[j][0] == i['name'] for j in bot.map), i['clan'] or '<none>', i['id']) for i in users]
+    print('Users on the map:\n' + '\n'.join('[{3:3}] {0}:{2} ({1})'.format(*i) for i in sorted(users, key=lambda x:-x[1])))
+    print()
     c = input('Enter countries or users to conquer: ').lower().split()
+    id_to_name = {i[3]: i[0].lower() for i in users}
+    c = [id_to_name[int(i)] if i.isdigit() else i for i in c]
     bot.conquer(c)
 
 
