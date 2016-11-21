@@ -35,7 +35,7 @@ class Bot:
 
     def genCode(self, country):
         r = random.random()
-        a = 'rand' + country + str(r)
+        a = 'cyka' + country + str(r)
         b = 0
         for i in a:
             b *= 31
