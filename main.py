@@ -17,11 +17,13 @@ class Bot:
     def __init__(self, session):
         self.session = session
         self.auth()
+        resp = ''
         try:
-            self.login = json.loads(self.open('getthis', {}))['name']
+            resp = self.open('getthis', {})
+            self.login = json.loads(resp)['name']
             self.getMapInfo()
         except Exception as e:
-            print('The server is down')
+            print(resp or 'The server is down!')
             sys.exit(1)
 
     def sorted_map(self):
