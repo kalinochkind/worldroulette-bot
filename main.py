@@ -131,11 +131,16 @@ class Bot:
 countries = dict(i.strip().split(maxsplit=1) for i in open('countries.txt', encoding='utf-8') if i)
 
 def main():
-    try:
-        session = open('accounts.txt').read().strip()
-    except FileNotFoundError:
-        print('accounts.txt does not exist')
-        sys.exit(2)
+    if len(sys.argv) > 1:
+        session = sys.argv[1]
+        with open('accounts.txt', 'w') as f:
+            f.write(session)
+    else:
+        try:
+            session = open('accounts.txt').read().strip()
+        except FileNotFoundError:
+            print('accounts.txt does not exist')
+            sys.exit()
     bot = Bot(session)
     users = bot.getPlayerList()
     users = [(i['name'], sum(bot.map[j][0] == i['name'] for j in bot.map), i['clan'] or '<none>', i['id']) for i in users]
