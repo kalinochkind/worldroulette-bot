@@ -6,6 +6,7 @@ import json
 import time
 import random
 import sys
+import re
 
 ROLL_INTERVAL = 5
 USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/53.0.2763.0 Safari/537.36'
@@ -91,7 +92,13 @@ class Bot:
                     print('Conquered')
                     return True
                 else:
-                    print('*', end='', flush=True)
+                    try:
+                        num = re.search(r'\d{5}', res['data']).group(0)
+                        combo = num[-2] == num[-3]
+                    except Exception as e:
+                        print(e)
+                        combo = False
+                    print('#' if combo else '*', end='', flush=True)
                     return False
             elif res['result'] == 'fail':
                 print('.', end='', flush=True)
