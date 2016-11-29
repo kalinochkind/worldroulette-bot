@@ -77,7 +77,7 @@ class Bot:
         all_users = {i[0] for i in self.map.values()}
         return [i for i in pg if i['name'] in all_users]
 
-    def fight(self, country, last_error=''):
+    def fight(self, country, last_error='', empower=False):
         try:
             d = self.genCode(country)
             d['target'] = country
@@ -99,6 +99,16 @@ class Bot:
                         print(e)
                         combo = False
                     print('#' if combo else '*', end='', flush=True)
+                    self.getMapInfo()
+                    if self.map[country][0] == self.login:
+                        if empower:
+                            if self.map[country][1] == 7:
+                                print('Finished')
+                                return True
+                            else:
+                                return False
+                        else:
+                            return True
                     return False
             elif res['result'] == 'fail':
                 print('.', end='', flush=True)
@@ -119,13 +129,21 @@ class Bot:
         while not self.fight(country):
             pass
 
+    def empowerCountry(self, country):
+        if self.map[country][1] == 7:
+            return
+        print('Empowering {} ({}), level {}'.format(country, countries[country], self.map[country][1]))
+        while not self.fight(country, empower=True):
+            pass
+
     def conquer(self, object_list):
         tmap = self.sorted_map()
         for name in tmap:
             if name.lower() in object_list or self.map[name][0].lower() in object_list or '*' in object_list:
                 if self.map[name][0].lower() == self.login:
-                    continue
-                self.conquerCountry(name)
+                    self.empowerCountry(name)
+                else:
+                    self.conquerCountry(name)
                 self.getMapInfo()
 
 countries = dict(i.strip().split(maxsplit=1) for i in open('countries.txt', encoding='utf-8') if i)
