@@ -18,6 +18,7 @@ class Bot:
     def __init__(self, session):
         self.session = session
         self.auth()
+        self.order = 'm'
         resp = ''
         try:
             resp = self.open('getthis', {})
@@ -28,7 +29,13 @@ class Bot:
             sys.exit(1)
 
     def sorted_map(self):
-        return sorted(self.map, key=lambda x:(-self.map[x][3] / self.map[x][1], x))
+        func = {'m': lambda x: -self.map[x][3] / self.map[x][1],
+                'M': lambda x: self.map[x][3] / self.map[x][1],
+                'l': lambda x: self.map[x][1],
+                'L': lambda x: -self.map[x][1],
+                's': lambda x: -self.map[x][3],
+                'S': lambda x: self.map[x][3],}
+        return sorted(self.map, key=lambda x:(func[self.order](x), x))
 
     def auth(self):
         self.opener = requests.session()
@@ -85,7 +92,7 @@ class Bot:
             res = self.open('roll', json.dumps(d))
             time.sleep(ROLL_INTERVAL)
             if not res:
-                return self.fight(country)
+                return self.fight(country, empower=empower)
             res = json.loads(res)
             if res['result'] == 'success':
                 if 'вы успешно захватили' in res['data']:
@@ -116,7 +123,7 @@ class Bot:
             elif res['result'] == 'error':
                 if res['data'] != last_error and res['data'] != 'Подождите немного!':
                     print('[{}]'.format(res['data']), end='', flush=True)
-                return self.fight(country, res['data'])
+                return self.fight(country, res['data'], empower=empower)
         except Exception as e:
             print(e)
             time.sleep(1)
@@ -164,9 +171,12 @@ def main():
     users = [(i['name'], sum(bot.map[j][0] == i['name'] for j in bot.map), i['clan'] or '<none>', i['id']) for i in users]
     print('Users on the map:\n' + '\n'.join('[{3:3}] {0}:{2} ({1})'.format(*i) for i in sorted(users, key=lambda x:-x[1])))
     print()
-    c = input('Enter countries or users to conquer: ').lower().split()
+    c = input('Enter countries or users to conquer: ').split()
     id_to_name = {i[3]: i[0].lower() for i in users}
-    c = [id_to_name[int(i)] if i.isdigit() else i for i in c]
+    if c and len(c[0]) == 1 and c[0] in 'lLsSmM':
+        bot.order = c[0]
+        c = c[1:]
+    c = [id_to_name[int(i)] if i.isdigit() else i.lower() for i in c]
     bot.conquer(c)
 
 
