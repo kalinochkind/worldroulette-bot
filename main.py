@@ -19,6 +19,7 @@ class Bot:
         self.session = session
         self.auth()
         self.order = 'm'
+        self.last_roll = 0
         resp = ''
         try:
             resp = self.open('getthis', {})
@@ -97,8 +98,11 @@ class Bot:
             d = self.genCode(country)
             d['target'] = country
             d['captcha'] = ''
+            ctime = time.time()
+            if ctime < self.last_roll + ROLL_INTERVAL:
+                time.sleep(self.last_roll + ROLL_INTERVAL - ctime)
+            self.last_roll = ctime
             res = self.open('roll', json.dumps(d))
-            time.sleep(ROLL_INTERVAL)
             if not res:
                 return self.fight(country, empower=empower)
             res = json.loads(res)
