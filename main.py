@@ -66,6 +66,7 @@ class Bot:
                     if isinstance(params, str):
                         headers['Content-type'] = 'application/json'
                     resp = self.opener.post(self.host + uri, headers=headers, data=params)
+                resp.encoding = 'UTF-8'
                 return resp.text
             except Exception as e:
                 time.sleep(1)
@@ -82,7 +83,14 @@ class Bot:
         res = self.open('getplayers')
         pg = json.loads(res)
         all_users = {i[0] for i in self.map.values()}
-        return [i for i in pg if i['name'] in all_users]
+        res = []
+        for i in pg:
+            for j in all_users:
+                if i['name'].startswith(j):
+                    i['name'] = j
+                    res.append(i)
+                    break
+        return res
 
     def fight(self, country, last_error='', empower=False):
         try:
