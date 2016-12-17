@@ -176,8 +176,9 @@ def main():
             sys.exit()
     bot = Bot(session)
     users = bot.getPlayerList()
-    users = [(i['name'], sum(bot.map[j][0] == i['name'] for j in bot.map), i['clan'] or '<none>', i['id']) for i in users]
-    print('Users on the map:\n' + '\n'.join('[{3:3}] {0}:{2} ({1})'.format(*i) for i in sorted(users, key=lambda x:-x[1])))
+    users = [(i['name'], sum(bot.map[j][0] == i['name'] for j in bot.map), i['clan'] or '<none>', i['id'],
+              sum(bot.map[j][1] * (bot.map[j][0] == i['name']) for j in bot.map)) for i in users]
+    print('Users on the map:\n' + '\n'.join('[{3:3}] {0}:{2} ({1}, {4})'.format(*i) for i in sorted(users, key=lambda x:-x[1])))
     print()
     c = input('Enter countries or users to conquer: ').split()
     id_to_name = {i[3]: i[0].lower() for i in users}
