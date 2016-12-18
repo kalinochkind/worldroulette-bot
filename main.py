@@ -195,7 +195,7 @@ def main():
     if c and len(c[0]) == 1 and c[0] in 'lLsSmMe':
         bot.order = c[0]
         c = c[1:]
-    if bot.order == 'e' and not c:
+    if not c:
         c = ['*']
     c = [id_to_name[int(i)] if i.isdigit() else i.lower() for i in c]
     bot.conquer(c)
