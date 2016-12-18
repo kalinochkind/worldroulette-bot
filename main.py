@@ -35,7 +35,8 @@ class Bot:
                 'l': lambda x: self.map[x][1],
                 'L': lambda x: -self.map[x][1],
                 's': lambda x: -self.map[x][3],
-                'S': lambda x: self.map[x][3],}
+                'S': lambda x: self.map[x][3],
+                'e': lambda x: -self.map[x][3],}
         return sorted(self.map, key=lambda x:(func[self.order](x), x))
 
     def auth(self):
@@ -149,7 +150,7 @@ class Bot:
             pass
 
     def empowerCountry(self, country):
-        if self.map[country][1] == 7:
+        if self.map[country][1] == 7 or self.map[country][0].lower() != self.login:
             return
         print('Empowering {} ({}), level {}'.format(country, countries[country], self.map[country][1]))
         while not self.fight(country, empower=True):
@@ -159,7 +160,7 @@ class Bot:
         tmap = self.sorted_map()
         for name in tmap:
             if name.lower() in object_list or self.map[name][0].lower() in object_list or '*' in object_list:
-                if self.map[name][0].lower() == self.login:
+                if self.order == 'e':
                     self.empowerCountry(name)
                 else:
                     self.conquerCountry(name)
@@ -186,9 +187,11 @@ def main():
     print()
     c = input('Enter countries or users to conquer: ').split()
     id_to_name = {i[3]: i[0].lower() for i in users}
-    if c and len(c[0]) == 1 and c[0] in 'lLsSmM':
+    if c and len(c[0]) == 1 and c[0] in 'lLsSmMe':
         bot.order = c[0]
         c = c[1:]
+    if bot.order == 'e' and not c:
+        c = ['*']
     c = [id_to_name[int(i)] if i.isdigit() else i.lower() for i in c]
     bot.conquer(c)
 
