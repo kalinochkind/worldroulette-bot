@@ -24,10 +24,16 @@ class Bot:
         try:
             resp = self.open('getthis', {})
             self.login = json.loads(resp)['name']
+            self.fetchCountryNames()
             self.getMapInfo()
         except Exception as e:
             print(resp or 'The server is down!')
             sys.exit(1)
+
+    def fetchCountryNames(self):
+        s = self.open('jquery-jvectormap-world-mill-ru.js').replace('jQuery.fn.vectorMap(', '[').replace(');', ']').replace("'", '"')
+        d = json.loads(s)[2]['paths']
+        self.country_name = {i: d[i]['name'] for i in d}
 
     def sorted_map(self):
         func = {'m': lambda x: -self.map[x][3] / self.map[x][1],
@@ -145,14 +151,14 @@ class Bot:
     def conquerCountry(self, country):
         if self.map[country][0].lower() == self.login:
             return
-        print('Conquering {} ({}), level {}, belongs to {}'.format(country, countries[country], self.map[country][1], self.map[country][0]))
+        print('Conquering {} ({}), level {}, belongs to {}'.format(country, self.country_name[country], self.map[country][1], self.map[country][0]))
         while not self.fight(country):
             pass
 
     def empowerCountry(self, country):
         if self.map[country][1] == 7 or self.map[country][0].lower() != self.login:
             return
-        print('Empowering {} ({}), level {}'.format(country, countries[country], self.map[country][1]))
+        print('Empowering {} ({}), level {}'.format(country, self.country_name[country], self.map[country][1]))
         while not self.fight(country, empower=True):
             pass
 
@@ -166,7 +172,6 @@ class Bot:
                     self.conquerCountry(name)
                 self.getMapInfo()
 
-countries = dict(i.strip().split(maxsplit=1) for i in open('countries.txt', encoding='utf-8') if i)
 
 def main():
     if len(sys.argv) > 1:
