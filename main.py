@@ -170,6 +170,8 @@ class Bot:
                     self.empowerCountry(name)
                 else:
                     self.conquerCountry(name)
+                    self.getMapInfo()
+                    self.empowerCountry(name)
                 self.getMapInfo()
 
 
