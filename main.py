@@ -199,7 +199,7 @@ def main():
         c = c[1:]
     if not c:
         c = ['*']
-    c = [id_to_name[int(i)] if i.isdigit() else i.lower() for i in c]
+    c = [id_to_name.get(int(i)) if i.isdigit() else i.lower() for i in c]
     bot.conquer(c)
 
 
