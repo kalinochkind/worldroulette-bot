@@ -154,6 +154,7 @@ class Bot:
         print('Conquering {} ({}), level {}, belongs to {}'.format(country, self.country_name[country], self.map[country][1], self.map[country][0]))
         while not self.fight(country):
             pass
+        self.getMapInfo()
 
     def empowerCountry(self, country):
         if self.map[country][1] == 7 or self.map[country][0].lower() != self.login:
@@ -161,6 +162,7 @@ class Bot:
         print('Empowering {} ({}), level {}'.format(country, self.country_name[country], self.map[country][1]))
         while not self.fight(country, empower=True):
             pass
+        self.getMapInfo()
 
     def conquer(self, object_list):
         tmap = self.sorted_map()
@@ -170,9 +172,7 @@ class Bot:
                     self.empowerCountry(name)
                 else:
                     self.conquerCountry(name)
-                    self.getMapInfo()
                     self.empowerCountry(name)
-                self.getMapInfo()
 
 
 def main():
