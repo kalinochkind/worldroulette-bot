@@ -114,17 +114,17 @@ class Bot:
                 return self.fight(country, empower=empower)
             res = json.loads(res)
             if res['result'] == 'success':
+                try:
+                    num = re.search(r'\d{5}', res['data']).group(0)
+                    combo = num[-2] == num[-3]
+                except Exception as e:
+                    print(e)
+                    combo = False
+                print('#' if combo else '*', end='', flush=True)
                 if 'вы успешно захватили' in res['data']:
                     print('Conquered')
                     return True
                 else:
-                    try:
-                        num = re.search(r'\d{5}', res['data']).group(0)
-                        combo = num[-2] == num[-3]
-                    except Exception as e:
-                        print(e)
-                        combo = False
-                    print('#' if combo else '*', end='', flush=True)
                     self.getMapInfo()
                     if self.map[country][0] == self.login:
                         if empower:
@@ -165,6 +165,7 @@ class Bot:
         self.getMapInfo()
 
     def conquer(self, object_list):
+        self.getMapInfo()
         tmap = self.sorted_map()
         for name in tmap:
             if name.lower() in object_list or self.map[name][0].lower() in object_list or '*' in object_list:
