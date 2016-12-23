@@ -107,7 +107,7 @@ class Bot:
                     break
         return res
 
-    def fight(self, country, empower=False):
+    def fight(self, country):
         try:
             d = self.genCode(country)
             d['target'] = country
@@ -137,10 +137,9 @@ class Bot:
                     else:
                         self.getMapInfo()
                         if self.map[country][0] in self.logins:
-                            if empower:
-                                if self.map[country][1] == 7:
-                                    print('Finished')
-                                    return
+                            if self.map[country][1] == 7:
+                                print('Finished')
+                                return
                 elif res['result'] == 'fail':
                     print('.', end='', flush=True)
                 elif res['result'] == 'error':
