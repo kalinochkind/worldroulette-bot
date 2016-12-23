@@ -133,7 +133,7 @@ class Bot:
                     print('#' if combo else '*', end='', flush=True)
                     if 'вы успешно захватили' in res['data']:
                         print('Conquered')
-                        continue
+                        return
                     else:
                         self.getMapInfo()
                         if self.map[country][0] in self.logins:
