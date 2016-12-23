@@ -15,17 +15,20 @@ USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Ge
 class Bot:
     host = 'https://worldroulette.ru/'
 
-    def __init__(self, session):
-        self.session = session
+    def __init__(self, sessions):
+        self.sessions = sessions
         self.auth()
         self.order = 'm'
         self.last_roll = 0
         resp = ''
         try:
-            resp = self.open('getthis', {})
-            self.login = json.loads(resp)['name']
+            self.logins = []
+            for i in range(len(self.openers)):
+                resp = self.open('getthis', {}, opener=i)
+                self.logins.append(json.loads(resp)['name'])
             self.fetchCountryNames()
             self.getMapInfo()
+            self.last_error = dict.fromkeys(self.logins)
         except Exception as e:
             print(resp or 'The server is down!')
             sys.exit(1)
@@ -46,9 +49,11 @@ class Bot:
         return sorted(self.map, key=lambda x:(func[self.order](x), x))
 
     def auth(self):
-        self.opener = requests.session()
-        self.opener.mount(self.host, hyper.contrib.HTTP20Adapter())
-        self.opener.cookies['session'] = self.session
+        self.openers = []
+        for session in self.sessions:
+            self.openers.append(requests.session())
+            self.openers[-1].mount(self.host, hyper.contrib.HTTP20Adapter())
+            self.openers[-1].cookies['session'] = session
 
 
     def genCode(self, country):
@@ -64,16 +69,16 @@ class Bot:
                 b -= 2**32
         return {'a': b, 'b': r}
 
-    def open(self, uri, params=None):
+    def open(self, uri, params=None, opener=0):
         headers = {'Connection': None, 'User-agent': USER_AGENT}
         for i in range(10):
             try:
                 if params is None:
-                    resp = self.opener.get(self.host + uri, headers=headers)
+                    resp = self.openers[opener].get(self.host + uri, headers=headers)
                 else:
                     if isinstance(params, str):
                         headers['Content-type'] = 'application/json'
-                    resp = self.opener.post(self.host + uri, headers=headers, data=params)
+                    resp = self.openers[opener].post(self.host + uri, headers=headers, data=params)
                 resp.encoding = 'UTF-8'
                 return resp.text
             except Exception as e:
@@ -100,7 +105,7 @@ class Bot:
                     break
         return res
 
-    def fight(self, country, last_error='', empower=False):
+    def fight(self, country, empower=False):
         try:
             d = self.genCode(country)
             d['target'] = country
@@ -109,60 +114,56 @@ class Bot:
             if ctime < self.last_roll + ROLL_INTERVAL:
                 time.sleep(self.last_roll + ROLL_INTERVAL - ctime)
             self.last_roll = ctime
-            res = self.open('roll', json.dumps(d))
-            if not res:
-                return self.fight(country, empower=empower)
-            res = json.loads(res)
-            if res['result'] == 'success':
-                try:
-                    num = re.search(r'\d{5}', res['data']).group(0)
-                    combo = num[-2] == num[-3]
-                except Exception as e:
-                    print(e)
-                    combo = False
-                print('#' if combo else '*', end='', flush=True)
-                if 'вы успешно захватили' in res['data']:
-                    print('Conquered')
-                    return True
-                else:
-                    self.getMapInfo()
-                    if self.map[country][0] == self.login:
-                        if empower:
-                            if self.map[country][1] == 7:
-                                print('Finished')
-                                return True
-                            else:
-                                return False
-                        else:
-                            return True
-                    return False
-            elif res['result'] == 'fail':
-                print('.', end='', flush=True)
-                return False
-            elif res['result'] == 'error':
-                if res['data'] != last_error and res['data'] != 'Подождите немного!':
-                    print('[{}]'.format(res['data']), end='', flush=True)
-                return self.fight(country, res['data'], empower=empower)
+            for i in range(len(self.openers)):
+                res = self.open('roll', json.dumps(d), opener=i)
+                if not res:
+                    continue
+                res = json.loads(res)
+                if res['result'] != 'error':
+                    self.last_error[i] = None
+                if res['result'] == 'success':
+                    try:
+                        num = re.search(r'\d{5}', res['data']).group(0)
+                        combo = num[-2] == num[-3]
+                    except Exception as e:
+                        print(e)
+                        combo = False
+                    print('#' if combo else '*', end='', flush=True)
+                    if 'вы успешно захватили' in res['data']:
+                        print('Conquered')
+                        continue
+                    else:
+                        self.getMapInfo()
+                        if self.map[country][0] in self.logins:
+                            if empower:
+                                if self.map[country][1] == 7:
+                                    print('Finished')
+                                    return
+                elif res['result'] == 'fail':
+                    print('.', end='', flush=True)
+                elif res['result'] == 'error':
+                    if res['data'] != self.last_error[i] and res['data'] != 'Подождите немного!':
+                        print('[{} - {}]'.format(self.logins[i], res['data']), end='', flush=True)
+                    self.last_error[i] = res['data']
+                self.getMapInfo()
         except Exception as e:
             print(e)
             time.sleep(1)
             return False
 
     def conquerCountry(self, country):
-        if self.map[country][0].lower() == self.login:
+        if self.map[country][0].lower() in self.logins:
             return
         print('Conquering {} ({}), level {}, belongs to {}'.format(country, self.country_name[country], self.map[country][1], self.map[country][0]))
-        while not self.fight(country):
-            pass
-        self.getMapInfo()
+        while self.map[country][0].lower() not in self.logins:
+            self.fight(country)
 
     def empowerCountry(self, country):
-        if self.map[country][1] == 7 or self.map[country][0].lower() != self.login:
+        if self.map[country][1] == 7 or self.map[country][0].lower() not in self.logins:
             return
         print('Empowering {} ({}), level {}'.format(country, self.country_name[country], self.map[country][1]))
-        while not self.fight(country, empower=True):
-            pass
-        self.getMapInfo()
+        while self.map[country][1] != 7:
+            self.fight(country)
 
     def conquer(self, object_list):
         self.getMapInfo()
@@ -178,16 +179,16 @@ class Bot:
 
 def main():
     if len(sys.argv) > 1:
-        session = sys.argv[1]
+        sessions = sys.argv[1:]
         with open('accounts.txt', 'w') as f:
-            f.write(session)
+            f.write(' '.join(sessions))
     else:
         try:
-            session = open('accounts.txt').read().strip()
+            sessions = open('accounts.txt').read().split()
         except FileNotFoundError:
             print('accounts.txt does not exist')
             sys.exit()
-    bot = Bot(session)
+    bot = Bot(sessions)
     users = bot.getPlayerList()
     users = [(i['name'], sum(bot.map[j][0] == i['name'] for j in bot.map), i['clan'] or '<none>', i['id'],
               sum(bot.map[j][1] * (bot.map[j][0] == i['name']) for j in bot.map)) for i in users]
