@@ -23,9 +23,11 @@ class Bot:
         resp = ''
         try:
             self.logins = []
+            self.ids = []
             for i in range(len(self.openers)):
                 resp = self.open('getthis', {}, opener=i)
                 self.logins.append(json.loads(resp)['name'])
+                self.ids.append(json.loads(resp)['id'])
             self.fetchCountryNames()
             self.getMapInfo()
             self.last_error = dict.fromkeys(self.logins)
@@ -154,14 +156,15 @@ class Bot:
     def conquerCountry(self, country):
         if self.map[country][0].lower() in self.logins:
             return
-        print('Conquering {} ({}), level {}, belongs to {}'.format(country, self.country_name[country], self.map[country][1], self.map[country][0]))
+        print('\nConquering {} ({}), level {}, belongs to {}'.format(country, self.country_name[country], self.map[country][1], self.map[country][0]))
         while self.map[country][0].lower() not in self.logins:
             self.fight(country)
+        self.sendToBatya(country)
 
     def empowerCountry(self, country):
         if self.map[country][1] == 7 or self.map[country][0].lower() not in self.logins:
             return
-        print('Empowering {} ({}), level {}'.format(country, self.country_name[country], self.map[country][1]))
+        print('\nEmpowering {} ({}), level {}'.format(country, self.country_name[country], self.map[country][1]))
         while self.map[country][1] != 7:
             self.fight(country)
 
@@ -176,6 +179,14 @@ class Bot:
                     self.conquerCountry(name)
                     self.empowerCountry(name)
 
+    def sendToBatya(self, country):
+        pname = self.map[country][0]
+        if pname not in self.logins:
+            return
+        pid = self.logins.index(pname)
+        if pid == 0:
+            return
+        self.open('give', json.dumps({'target': country, 'targetplid': self.ids[0]}), opener=pid)
 
 def main():
     if len(sys.argv) > 1:
@@ -189,20 +200,27 @@ def main():
             print('accounts.txt does not exist')
             sys.exit()
     bot = Bot(sessions)
-    users = bot.getPlayerList()
-    users = [(i['name'], sum(bot.map[j][0] == i['name'] for j in bot.map), i['clan'] or '<none>', i['id'],
-              sum(bot.map[j][1] * (bot.map[j][0] == i['name']) for j in bot.map)) for i in users]
-    print('Users on the map:\n' + '\n'.join('[{3:3}] {0}:{2} ({1}, {4})'.format(*i) for i in sorted(users, key=lambda x:(-x[1], -x[4]))))
-    print()
-    c = input('Enter countries or users to conquer: ').split()
-    id_to_name = {i[3]: i[0].lower() for i in users}
-    if c and len(c[0]) == 1 and c[0] in 'lLsSmMe':
-        bot.order = c[0]
-        c = c[1:]
-    if not c:
-        c = ['*']
-    c = [id_to_name.get(int(i)) if i.isdigit() else i.lower() for i in c]
-    bot.conquer(c)
+    while True:
+        bot.order = 'm'
+        for i in bot.last_error:
+            bot.last_error[i] = None
+        users = bot.getPlayerList()
+        users = [(i['name'], sum(bot.map[j][0] == i['name'] for j in bot.map), i['clan'] or '<none>', i['id'],
+                  sum(bot.map[j][1] * (bot.map[j][0] == i['name']) for j in bot.map)) for i in users]
+        print('Users on the map:\n' + '\n'.join('[{3:3}] {0}:{2} ({1}, {4})'.format(*i) for i in sorted(users, key=lambda x:(-x[1], -x[4]))))
+        print()
+        c = input('Enter countries or users to conquer: ').split()
+        id_to_name = {i[3]: i[0].lower() for i in users}
+        if c and len(c[0]) == 1 and c[0] in 'lLsSmMe':
+            bot.order = c[0]
+            c = c[1:]
+        if not c:
+            c = ['*']
+        c = [id_to_name.get(int(i)) if i.isdigit() else i.lower() for i in c]
+        for country in bot.map:
+            bot.sendToBatya(country)
+        bot.conquer(c)
+        print()
 
 
 if __name__ == '__main__':
