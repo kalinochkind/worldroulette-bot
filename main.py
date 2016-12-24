@@ -208,7 +208,11 @@ def main():
                   sum(bot.map[j][1] * (bot.map[j][0] == i['name']) for j in bot.map)) for i in users]
         print('Users on the map:\n' + '\n'.join('[{3:3}] {0}:{2} ({1}, {4})'.format(*i) for i in sorted(users, key=lambda x:(-x[1], -x[4]))))
         print()
-        c = input('Enter countries or users to conquer: ').split()
+        try:
+            c = input('Enter countries or users to conquer: ').split()
+        except EOFError:
+            print()
+            return
         id_to_name = {i[3]: i[0].lower() for i in users}
         if c and len(c[0]) == 1 and c[0] in 'lLsSmMe':
             bot.order = c[0]
