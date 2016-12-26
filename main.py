@@ -124,13 +124,16 @@ class Bot:
                 if res['result'] != 'error':
                     self.last_error[i] = None
                 if res['result'] == 'success':
+                    combo = 0
                     try:
                         num = re.search(r'\d{5}', res['data']).group(0)
-                        combo = num[-2] == num[-3]
+                        if num[-2] == num[-3]:
+                            combo = 1
+                            if num[-4] == num[-3]:
+                                combo = 2
                     except Exception as e:
                         print(e)
-                        combo = False
-                    print('#' if combo else '*', end='', flush=True)
+                    print('*#@'[combo], end='', flush=True)
                     if 'вы успешно захватили' in res['data']:
                         print('Conquered')
                         return
