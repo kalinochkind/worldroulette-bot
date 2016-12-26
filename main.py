@@ -222,11 +222,15 @@ def main():
             c = c[1:]
         if not c:
             c = ['*']
-        c = [id_to_name.get(int(i)) if i.isdigit() else i.lower() for i in c]
-        for country in bot.map:
-            bot.sendToBatya(country)
-        bot.conquer(c)
-        print()
+        try:
+            c = [id_to_name.get(int(i)) if i.isdigit() else i.lower() for i in c]
+            for country in bot.map:
+                bot.sendToBatya(country)
+            bot.conquer(c)
+            print()
+        except KeyboardInterrupt:
+            print('Interrupting')
+            continue
 
 
 if __name__ == '__main__':
