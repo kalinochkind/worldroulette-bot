@@ -163,7 +163,7 @@ class Bot:
         self.getMapInfo()
         tmap = self.sorted_map()
         for name in tmap:
-            if self.map[name][0] in object_list or '*' in object_list:
+            if name in object_list or self.map[name][0] in object_list or '*' in object_list:
                 if self.order == 'e':
                     self.empowerCountry(name)
                 else:
@@ -201,7 +201,7 @@ def main():
         print('Users on the map:\n' + '\n'.join('[{3:3}] {0}:{2} ({1}, {4})'.format(*i) for i in sorted(users, key=lambda x:(-x[1], -x[4]))))
         print()
         try:
-            c = input('Enter countries or users to conquer: ').split()
+            c = input('Enter countries or users to conquer: ').upper().split()
         except EOFError:
             print()
             return
