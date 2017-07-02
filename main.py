@@ -135,7 +135,7 @@ class Bot:
                 elif res['result'] == 'fail':
                     print('.', end='', flush=True)
                 elif res['result'] == 'error':
-                    if res['data'] != self.last_error[i] and res['data'] != 'Подождите немного!':
+                    if res['data'] != self.last_error.get(i) and res['data'] != 'Подождите немного!':
                         print('[{} - {}]'.format(self.player_cache[self.ids[i]]['name'], res['data']), end='', flush=True)
                     self.last_error[i] = res['data']
                 self.getMapInfo()
@@ -210,6 +210,7 @@ def main():
             c = c[1:]
         if not c:
             c = ['*']
+        bot.getMapInfo()
         try:
             for country in bot.map:
                 bot.sendToBatya(country)
