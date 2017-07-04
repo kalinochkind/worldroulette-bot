@@ -201,13 +201,14 @@ def main():
         print('Users on the map:\n' + '\n'.join('[{3:3}] {0}:{2} ({1}, {4})'.format(*i) for i in sorted(users, key=lambda x:(-x[1], -x[4]))))
         print()
         try:
-            c = input('Enter countries or users to conquer: ').upper().split()
+            c = input('Enter countries or users to conquer: ').split()
         except EOFError:
             print()
             return
-        if c and len(c[0]) == 1 and c[0] in 'lLsSmMe':
+        if c and len(c[0]) == 1 and c[0] in 'Mme':
             bot.order = c[0]
             c = c[1:]
+        c = list(map(str.upper, c))
         if not c:
             c = ['*']
         bot.getMapInfo()
