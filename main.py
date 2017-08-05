@@ -56,7 +56,8 @@ class Bot:
     def sorted_map(self):
         func = {'m': lambda x: self.map[x][1],
                 'M': lambda x: -self.map[x][1],
-                'e': lambda x: self.map[x][1],}
+                'e': lambda x: self.map[x][1],
+                'c': lambda x: self.map[x][1],}
         return sorted(self.map, key=lambda x:(func[self.order](x), x))
 
     def auth(self):
@@ -166,6 +167,8 @@ class Bot:
             if name in object_list or self.map[name][0] in object_list or '*' in object_list:
                 if self.order == 'e':
                     self.empowerCountry(name)
+                elif self.order == 'c':
+                    self.conquerCountry(name)
                 else:
                     self.conquerCountry(name)
                     self.empowerCountry(name)
@@ -178,6 +181,25 @@ class Bot:
         if pid == 0:
             return
         self.open('give', json.dumps({'target': country, 'targetplid': self.ids[0]}), opener=pid)
+
+    def sendAll(self, uid):
+        self.getMapInfo()
+        for c in self.map:
+            self.sendToBatya(c)
+        count = 0
+        for c in self.map:
+            if self.map[c][0] != self.ids[0]:
+                continue
+            if uid == 'random':
+                res = ''
+                while not res.startswith('Территория'):
+                    res = self.open('give', json.dumps({'target': c, 'targetplid': random.randint(1, 2000)}))
+            else:
+                res = self.open('give', json.dumps({'target': c, 'targetplid': uid}))
+            print(res)
+            count += 1
+        print('Countries given:', count)
+        self.getMapInfo()
 
 def main():
     if len(sys.argv) > 1:
@@ -205,7 +227,14 @@ def main():
         except EOFError:
             print()
             return
-        if c and len(c[0]) == 1 and c[0] in 'Mme':
+        if c and c[0] == 'give':
+            if len(c) != 2:
+                print('Usage: give (UID|random)\n')
+                continue
+            bot.sendAll(c[1])
+            print()
+            continue
+        if c and len(c[0]) == 1 and c[0] in 'Mmec':
             bot.order = c[0]
             c = c[1:]
         c = list(map(str.upper, c))
