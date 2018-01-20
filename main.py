@@ -201,6 +201,9 @@ class Bot:
         print('Countries given:', count)
         self.getMapInfo()
 
+    def fcolor(self, color):
+        self.open('fcolor', json.dumps({'color': color}))
+
 def main():
     if len(sys.argv) > 1:
         sessions = sys.argv[1:]
@@ -227,6 +230,16 @@ def main():
         except EOFError:
             print()
             return
+        if c == ['flash']:
+            print('Flashing')
+            try:
+                while True:
+                    color = hex(random.randint(0, 2**24 - 1))[2:].zfill(6)
+                    bot.fcolor(color)
+                    time.sleep(0.5)
+            except KeyboardInterrupt:
+                print('Interrupting')
+                continue
         if c and c[0] == 'give':
             if len(c) != 2:
                 print('Usage: give (UID|random)\n')
