@@ -204,6 +204,7 @@ class Bot:
     def fcolor(self, color):
         self.open('fcolor', json.dumps({'color': color}))
 
+
 def main():
     if len(sys.argv) > 1:
         sessions = sys.argv[1:]
@@ -237,6 +238,16 @@ def main():
                     color = hex(random.randint(0, 2**24 - 1))[2:].zfill(6)
                     bot.fcolor(color)
                     time.sleep(0.5)
+            except KeyboardInterrupt:
+                print('Interrupting')
+                continue
+        if c == ['fracflash']:
+            print('Fracflashing')
+            try:
+                while True:
+                    bot.open('fremove', '{}')
+                    bot.open('fcreate', json.dumps({'fname': 'null', 'color': hex(random.randint(0, 2**24 - 1))[2:].zfill(6)}))
+                    time.sleep(0.3)
             except KeyboardInterrupt:
                 print('Interrupting')
                 continue
