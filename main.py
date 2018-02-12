@@ -241,13 +241,18 @@ def main():
             except KeyboardInterrupt:
                 print('Interrupting')
                 continue
-        if c == ['fracflash']:
+        if c and c[0] == 'fracflash':
+            try:
+                interval = float(c[1])
+            except (ValueError, IndexError):
+                print('Invalid interval\n')
+                continue
             print('Fracflashing')
             try:
                 while True:
                     bot.open('fremove', '{}')
                     bot.open('fcreate', json.dumps({'fname': 'null', 'color': hex(random.randint(0, 2**24 - 1))[2:].zfill(6)}))
-                    time.sleep(0.3)
+                    time.sleep(interval)
             except KeyboardInterrupt:
                 print('Interrupting')
                 continue
