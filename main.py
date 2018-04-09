@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 
 import requests
 import hyper.contrib
@@ -69,13 +69,14 @@ class Bot:
 
     def open(self, uri, params=None, opener=0):
         headers = {'Connection': None, 'User-agent': USER_AGENT}
+        if params is not None:
+            params = json.dumps(params).encode()
         for i in range(10):
             try:
                 if params is None:
                     resp = self.openers[opener].get(self.host + uri, headers=headers)
                 else:
-                    if isinstance(params, str):
-                        headers['Content-type'] = 'application/json'
+                    headers['Content-type'] = 'application/json'
                     resp = self.openers[opener].post(self.host + uri, headers=headers, data=params)
                 resp.encoding = 'UTF-8'
                 return resp.text
@@ -85,7 +86,12 @@ class Bot:
         return ''
 
     def getMapInfo(self):
-        pg = json.loads(self.open('get', {}))
+        try:
+            pg = json.loads(self.open('get', {}))
+        except Exception:
+            time.sleep(1)
+            self.getMapInfo()
+            return
         self.map = {}
         for i in pg['map']:
             self.map[i] = (str(pg['map'][i]['uid']), pg['map'][i]['sp'])
@@ -107,7 +113,7 @@ class Bot:
                 time.sleep(self.last_roll + ROLL_INTERVAL - ctime)
             self.last_roll = ctime
             for i in range(len(self.openers)):
-                res = self.open('roll', json.dumps(d), opener=i)
+                res = self.open('roll', d, opener=i)
                 if not res:
                     continue
                 res = json.loads(res)
@@ -180,7 +186,7 @@ class Bot:
         pid = self.ids.index(pname)
         if pid == 0:
             return
-        self.open('give', json.dumps({'target': country, 'targetplid': self.ids[0]}), opener=pid)
+        self.open('give', {'target': country, 'targetplid': self.ids[0]}, opener=pid)
 
     def sendAll(self, uid):
         self.getMapInfo()
@@ -193,16 +199,16 @@ class Bot:
             if uid == 'random':
                 res = ''
                 while not res.startswith('Территория'):
-                    res = self.open('give', json.dumps({'target': c, 'targetplid': random.randint(1, 2000)}))
+                    res = self.open('give', {'target': c, 'targetplid': random.randint(1, 2000)})
             else:
-                res = self.open('give', json.dumps({'target': c, 'targetplid': uid}))
+                res = self.open('give', {'target': c, 'targetplid': uid})
             print(res)
             count += 1
         print('Countries given:', count)
         self.getMapInfo()
 
     def fcolor(self, color):
-        self.open('fcolor', json.dumps({'color': color}))
+        self.open('fcolor', {'color': color})
 
 
 def main():
@@ -218,12 +224,19 @@ def main():
             sys.exit()
     bot = Bot(sessions)
     while True:
+        bot.auth()
         bot.order = 'm'
         for i in bot.last_error:
             bot.last_error[i] = None
+        bot.getMapInfo()
         users = bot.getPlayerList()
-        users = [(i['name'], sum(bot.map[j][0] == i['id'] for j in bot.map), bot.fractions[str(i.get('fid', 0))]['name'], i['id'],
+        try:
+            users = [(i['name'], sum(bot.map[j][0] == i['id'] for j in bot.map), bot.fractions[str(i.get('fid', 0))]['name'], i['id'],
                   sum(bot.map[j][1] * (bot.map[j][0] == i['id']) for j in bot.map)) for i in users]
+        except Exception as e:
+            print(e)
+            time.sleep(1)
+            continue
         print('Users on the map:\n' + '\n'.join('[{3:3}] {0}:{2} ({1}, {4})'.format(*i) for i in sorted(users, key=lambda x:(-x[1], -x[4]))))
         print()
         try:
@@ -250,8 +263,8 @@ def main():
             print('Fracflashing')
             try:
                 while True:
-                    bot.open('fremove', '{}')
-                    bot.open('fcreate', json.dumps({'fname': 'null', 'color': hex(random.randint(0, 2**24 - 1))[2:].zfill(6)}))
+                    bot.open('fremove', {})
+                    bot.open('fcreate', {'fname': str(random.randint(1, 100000000)), 'color': hex(random.randint(0, 2**24 - 1))[2:].zfill(6)})
                     time.sleep(interval)
             except KeyboardInterrupt:
                 print('Interrupting')
