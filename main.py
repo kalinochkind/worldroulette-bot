@@ -7,6 +7,7 @@ import time
 import random
 import sys
 import re
+import traceback
 
 ROLL_INTERVAL = 5
 MAX_LEVEL = 3
@@ -15,6 +16,9 @@ USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Ge
 
 class Bot:
     host = 'https://worldroulette.ru/'
+
+    maps = ['jquery-jvectormap-world-mill-ru.js', 'jquery-jvectormap-ru_fd-mill.js']
+    compound_countries = {'RU'}
 
     def __init__(self, sessions):
         self.sessions = sessions
@@ -27,7 +31,7 @@ class Bot:
             self.player_cache = {}
             for i in range(len(self.openers)):
                 resp = self.open('getthis', {}, opener=i)
-                self.ids.append(str(json.loads(resp)))
+                self.ids.append(str(list(json.loads(resp))[0]))
             self.fetchCountryNames()
             self.fractions = json.loads(self.open('factions'))
             self.fractions['0'] = {'name': '<none>'}
@@ -36,12 +40,20 @@ class Bot:
             self.last_error = {}
         except Exception as e:
             print(resp or 'The server is down!')
+            traceback.print_exc()
             sys.exit(1)
 
+
+    def addMap(self, data):
+        data = data.replace('jQuery.fn.vectorMap(', '[').replace(');', ']').replace("'", '"')
+        data = json.loads(data)[2]['paths']
+        return {i: data[i]['name'] for i in data}
+
     def fetchCountryNames(self):
-        s = self.open('jquery-jvectormap-world-mill-ru.js').replace('jQuery.fn.vectorMap(', '[').replace(');', ']').replace("'", '"')
-        d = json.loads(s)[2]['paths']
-        self.country_name = {i: d[i]['name'] for i in d}
+        self.country_name = {}
+        for name in self.maps:
+            map_part = self.addMap(self.open(name))
+            self.country_name.update(map_part)
 
     def getPlayers(self, players):
         players = [i for i in map(str, players) if i not in self.player_cache]
@@ -170,7 +182,7 @@ class Bot:
         self.getMapInfo()
         tmap = self.sorted_map()
         for name in tmap:
-            if name in object_list or self.map[name][0] in object_list or '*' in object_list:
+            if name in object_list or name[:2] in object_list or self.map[name][0] in object_list or '*' in object_list:
                 if self.order == 'e':
                     self.empowerCountry(name)
                 elif self.order == 'c':
