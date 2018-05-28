@@ -8,17 +8,103 @@ import random
 import sys
 import re
 import traceback
+from collections import defaultdict
 
 ROLL_INTERVAL = 5
-MAX_LEVEL = 3
 USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/53.0.2763.0 Safari/537.36'
+
+
+class Map:
+
+    def __init__(self, me):
+        self.country_names = {}
+        self.compound_countries = set()
+        self.cached_max_level = {}
+        self.me = me
+
+    def addMap(self, data):
+        data = data.replace('jQuery.fn.vectorMap(', '[').replace(');', ']').replace("'", '"')
+        data = json.loads(data)[2]['paths']
+        self.country_names.update({i: data[i]['name'] for i in data})
+        for name in data:
+            if '-' in name:
+                self.compound_countries.add(name.split('-')[0])
+
+    def updateState(self, data):
+        self.world_state = {}
+        self.local_state = {}
+        for section in data['map']:
+            for name, state in data['map'][section].items():
+                if section == 'world_mill':
+                    self.world_state[name] = (str(state['uid']), state['sp'])
+                else:
+                    country, region = name.split('-')
+                    if country not in self.local_state:
+                        self.local_state[country] = {}
+                    self.local_state[country][region] = (str(state['uid']), state['sp'])
+        self.players = data['players']
+
+    def _pointsToWin(self, country):
+        if self.world_state[country][0] in self.me:
+            return self.world_state[country][1] - 100
+        else:
+            return self.world_state[country][1]
+
+    def _sortedRegions(self, country):
+        return sorted(self.local_state[country], key=lambda x: (self.local_state[country][x][0] in self.me, self.local_state[country][x][1]))
+
+    def sortedList(self):
+        countries = sorted(self.world_state, key=self._pointsToWin)
+        regions = [[i + '-' + j for j in self._sortedRegions(i)] if i in self.compound_countries else [i] for i in countries]
+        return sum(regions, [])
+
+    def getPlayerList(self):
+        countries = defaultdict(int)
+        points = defaultdict(int)
+        for name, value in self.world_state.items():
+            countries[value[0]] += 1
+            if name not in self.compound_countries:
+                points[value[0]] += value[1]
+        for country in self.local_state:
+            for value in self.local_state[country].values():
+                points[value[0]] += value[1]
+        users = [{'id': i, 'name': self.players[i]['name'], 'countries': countries[i], 'points': points[i]}
+                 for i in self.players]
+        return users
+
+    def isMine(self, region, literally=False):
+        if literally:
+            return self._getRegion(region)[0] in self.me
+        if region in self.world_state:
+            return self.world_state[region][0] in self.me
+        else:
+            country, region = region.split('-')
+            return self.world_state[country][0] in self.me
+
+    def _getRegion(self, region):
+        if region in self.world_state:
+            return self.world_state[region]
+        else:
+            country, region = region.split('-')
+            return self.local_state[country][region]
+
+    def getLevel(self, region):
+        return self._getRegion(region)[1]
+
+    def getOwner(self, region, id=False):
+        if id:
+            return self._getRegion(region)[0]
+        else:
+            return self.players[self._getRegion(region)[0]]['name']
+
+    def updateMaxLevel(self, region):
+        self.cached_max_level[region] = self.getLevel(region)
 
 
 class Bot:
     host = 'https://worldroulette.ru/'
 
-    maps = ['jquery-jvectormap-world-mill-ru.js', 'jquery-jvectormap-ru_fd-mill.js']
-    compound_countries = {'RU'}
+    maps = ['jquery-jvectormap-world-mill.js', 'jquery-jvectormap-ru-mill.js']
 
     def __init__(self, sessions):
         self.sessions = sessions
@@ -30,11 +116,15 @@ class Bot:
             self.ids = []
             self.player_cache = {}
             for i in range(len(self.openers)):
-                resp = self.open('getthis', {}, opener=i)
-                self.ids.append(str(list(json.loads(resp))[0]))
-            self.fetchCountryNames()
-            self.fractions = json.loads(self.open('factions'))
-            self.fractions['0'] = {'name': '<none>'}
+                resp = json.loads(self.open('getthis', {}, opener=i))
+                if not resp:
+                    print('Invalid session')
+                    sys.exit(1)
+                self.ids.append(str(list(resp)[0]))
+            self.map = Map(self.ids)
+            for name in self.getMapFilenames():
+                self.map.addMap(self.open(name))
+            print('Compound countries:', ', '.join(sorted(self.map.compound_countries)))
             self.getMapInfo()
             self.getPlayers(self.ids)
             self.last_error = {}
@@ -43,17 +133,10 @@ class Bot:
             traceback.print_exc()
             sys.exit(1)
 
-
-    def addMap(self, data):
-        data = data.replace('jQuery.fn.vectorMap(', '[').replace(');', ']').replace("'", '"')
-        data = json.loads(data)[2]['paths']
-        return {i: data[i]['name'] for i in data}
-
-    def fetchCountryNames(self):
-        self.country_name = {}
-        for name in self.maps:
-            map_part = self.addMap(self.open(name))
-            self.country_name.update(map_part)
+    def getMapFilenames(self):
+        page = self.open('')
+        maps = re.findall(r'<script src="/(jquery-jvectormap-[a-z-]+\.js)"></script>', page)
+        return maps
 
     def getPlayers(self, players):
         players = [i for i in map(str, players) if i not in self.player_cache]
@@ -64,13 +147,6 @@ class Bot:
                 pg[i]['fid'] = str(pg[i].get('fid', 0))
                 pg[i]['id'] = str(pg[i]['id'])
             self.player_cache.update(pg)
-
-    def sorted_map(self):
-        func = {'m': lambda x: self.map[x][1],
-                'M': lambda x: -self.map[x][1],
-                'e': lambda x: self.map[x][1],
-                'c': lambda x: self.map[x][1],}
-        return sorted(self.map, key=lambda x:(func[self.order](x), x))
 
     def auth(self):
         self.openers = []
@@ -104,18 +180,7 @@ class Bot:
             time.sleep(1)
             self.getMapInfo()
             return
-        self.map = {}
-        for i in pg['map']:
-            self.map[i] = (str(pg['map'][i]['uid']), pg['map'][i]['sp'])
-        users = pg['players']
-        for i in users:
-            users[i]['id'] = str(users[i]['id'])
-            users[i]['fid'] = str(users[i].get('fid', 0))
-        self.player_cache.update(users)
-
-    def getPlayerList(self):
-        all_users = {i[0] for i in self.map.values()}
-        return [self.player_cache[i] for i in all_users]
+        self.map.updateState(pg)
 
     def fight(self, country):
         try:
@@ -132,25 +197,16 @@ class Bot:
                 if res['result'] != 'error':
                     self.last_error[i] = None
                 if res['result'] == 'success':
-                    combo = 0
-                    try:
-                        num = re.search(r'\d{5}', res['data']).group(0)
-                        if num[-2] == num[-3]:
-                            combo = 1
-                            if num[-4] == num[-3]:
-                                combo = 2
-                    except Exception as e:
-                        print(e)
-                    print('*#@'[combo], end='', flush=True)
+                    combo = res['numbers']
+                    print('.*#%@@@@'[combo], end='', flush=True)
                     if 'вы успешно захватили' in res['data']:
                         print('Conquered')
-                        return
-                    else:
-                        self.getMapInfo()
-                        if self.map[country][0] in self.ids:
-                            if self.map[country][1] >= MAX_LEVEL:
-                                print('Finished')
-                                return
+                        return 'done'
+                elif res['result'] == 'note' and 'уже улучшена' in res['data']:
+                    print('Finished')
+                    self.getMapInfo()
+                    self.map.updateMaxLevel(country)
+                    return 'max'
                 elif res['result'] == 'fail':
                     print('.', end='', flush=True)
                 elif res['result'] == 'error':
@@ -159,40 +215,52 @@ class Bot:
                     self.last_error[i] = res['data']
                 self.getMapInfo()
         except Exception as e:
-            print(e)
+            traceback.print_exc()
             time.sleep(1)
-            return False
+            self.getMapInfo()
+            return 'error'
 
     def conquerCountry(self, country):
-        if self.map[country][0] in self.ids:
-            return
-        print('\nConquering {} ({}), level {}, belongs to {}'.format(country, self.country_name[country], self.map[country][1], self.player_cache[self.map[country][0]]['name']))
-        while self.map[country][0].lower() not in self.ids:
+        if self.map.isMine(country):
+            return False
+        print('\nConquering {} ({}), level {}, belongs to {}'.format(country, self.map.country_names[country],
+                                                                     self.map.getLevel(country),
+                                                                     self.map.getOwner(country)))
+        while not self.map.isMine(country):
             self.fight(country)
         self.sendToBatya(country)
+        return True
 
     def empowerCountry(self, country):
-        if self.map[country][1] >= MAX_LEVEL or self.map[country][0] not in self.ids:
-            return
-        print('\nEmpowering {} ({}), level {}'.format(country, self.country_name[country], self.map[country][1]))
-        while self.map[country][1] < MAX_LEVEL:
-            self.fight(country)
+        if not self.map.isMine(country) or self.map.getLevel(country) >= self.map.cached_max_level.get(country, 10):
+            return False
+        print('\nEmpowering {} ({}), level {}'.format(country, self.map.country_names[country], self.map.getLevel(country)))
+        while True:
+            if self.fight(country) == 'max':
+                return True
 
     def conquer(self, object_list):
         self.getMapInfo()
-        tmap = self.sorted_map()
-        for name in tmap:
-            if name in object_list or name[:2] in object_list or self.map[name][0] in object_list or '*' in object_list:
-                if self.order == 'e':
-                    self.empowerCountry(name)
-                elif self.order == 'c':
-                    self.conquerCountry(name)
-                else:
-                    self.conquerCountry(name)
-                    self.empowerCountry(name)
+        while True:
+            tmap = self.map.sortedList()
+            changed = 0
+            for name in tmap:
+                if name in object_list or name[:2] in object_list or self.map.getOwner(name) in object_list or '*' in object_list:
+                    if self.order == 'e':
+                        changed += self.empowerCountry(name)
+                    elif self.order == 'c':
+                        changed += self.conquerCountry(name)
+                    else:
+                        changed += self.conquerCountry(name)
+                        changed +=self.empowerCountry(name)
+                    break
+            else:
+                return
+            if not changed:
+                return
 
     def sendToBatya(self, country):
-        pname = self.map[country][0]
+        pname = self.map.getOwner(country, True)
         if pname not in self.ids:
             return
         pid = self.ids.index(pname)
@@ -202,11 +270,12 @@ class Bot:
 
     def sendAll(self, uid):
         self.getMapInfo()
-        for c in self.map:
+        for c in self.map.sortedList():
             self.sendToBatya(c)
+        self.getMapInfo()
         count = 0
-        for c in self.map:
-            if self.map[c][0] != self.ids[0]:
+        for c in self.map.sortedList():
+            if not self.map.isMine(c, True):
                 continue
             if uid == 'random':
                 res = ''
@@ -218,9 +287,6 @@ class Bot:
             count += 1
         print('Countries given:', count)
         self.getMapInfo()
-
-    def fcolor(self, color):
-        self.open('fcolor', {'color': color})
 
 
 def main():
@@ -237,50 +303,17 @@ def main():
     bot = Bot(sessions)
     while True:
         bot.auth()
-        bot.order = 'm'
+        bot.order = 'c'
         for i in bot.last_error:
             bot.last_error[i] = None
         bot.getMapInfo()
-        users = bot.getPlayerList()
-        try:
-            users = [(i['name'], sum(bot.map[j][0] == i['id'] for j in bot.map), bot.fractions[str(i.get('fid', 0))]['name'], i['id'],
-                  sum(bot.map[j][1] * (bot.map[j][0] == i['id']) for j in bot.map)) for i in users]
-        except Exception as e:
-            print(e)
-            time.sleep(1)
-            continue
-        print('Users on the map:\n' + '\n'.join('[{3:3}] {0}:{2} ({1}, {4})'.format(*i) for i in sorted(users, key=lambda x:(-x[1], -x[4]))))
+        print('Users on the map:\n' + '\n'.join('[{id:4}] {name} ({countries}, {points})'.format(**i) for i in bot.map.getPlayerList()))
         print()
         try:
             c = input('Enter countries or users to conquer: ').split()
         except EOFError:
             print()
             return
-        if c == ['flash']:
-            print('Flashing')
-            try:
-                while True:
-                    color = hex(random.randint(0, 2**24 - 1))[2:].zfill(6)
-                    bot.fcolor(color)
-                    time.sleep(0.5)
-            except KeyboardInterrupt:
-                print('Interrupting')
-                continue
-        if c and c[0] == 'fracflash':
-            try:
-                interval = float(c[1])
-            except (ValueError, IndexError):
-                print('Invalid interval\n')
-                continue
-            print('Fracflashing')
-            try:
-                while True:
-                    bot.open('fremove', {})
-                    bot.open('fcreate', {'fname': str(random.randint(1, 100000000)), 'color': hex(random.randint(0, 2**24 - 1))[2:].zfill(6)})
-                    time.sleep(interval)
-            except KeyboardInterrupt:
-                print('Interrupting')
-                continue
         if c and c[0] == 'give':
             if len(c) != 2:
                 print('Usage: give (UID|random)\n')
@@ -288,7 +321,7 @@ def main():
             bot.sendAll(c[1])
             print()
             continue
-        if c and len(c[0]) == 1 and c[0] in 'Mmec':
+        if c and len(c[0]) == 1 and c[0] in 'eca':
             bot.order = c[0]
             c = c[1:]
         c = list(map(str.upper, c))
@@ -296,7 +329,7 @@ def main():
             c = ['*']
         bot.getMapInfo()
         try:
-            for country in bot.map:
+            for country in bot.map.sortedList():
                 bot.sendToBatya(country)
             bot.conquer(c)
             print()
