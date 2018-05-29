@@ -69,8 +69,8 @@ class Map:
             for value in self.local_state[country].values():
                 points[value[0]] += value[1]
         users = [{'id': i, 'name': self.players[i]['name'], 'countries': countries[i], 'points': points[i]}
-                 for i in self.players]
-        return users
+                 for i in self.players if points[i]]
+        return sorted(users, key=lambda x: (-x['countries'], -x['points'], x['id']))
 
     def isMine(self, region, literally=False):
         if literally:
@@ -103,8 +103,6 @@ class Map:
 
 class Bot:
     host = 'https://worldroulette.ru/'
-
-    maps = ['jquery-jvectormap-world-mill.js', 'jquery-jvectormap-ru-mill.js']
 
     def __init__(self, sessions):
         self.sessions = sessions
@@ -245,7 +243,7 @@ class Bot:
             tmap = self.map.sortedList()
             changed = 0
             for name in tmap:
-                if name in object_list or name[:2] in object_list or self.map.getOwner(name) in object_list or '*' in object_list:
+                if name in object_list or name[:2] in object_list or self.map.getOwner(name, True) in object_list or '*' in object_list:
                     if self.order == 'e':
                         changed += self.empowerCountry(name)
                     elif self.order == 'c':
@@ -253,7 +251,8 @@ class Bot:
                     else:
                         changed += self.conquerCountry(name)
                         changed +=self.empowerCountry(name)
-                    break
+                    if changed:
+                        break
             else:
                 return
             if not changed:
