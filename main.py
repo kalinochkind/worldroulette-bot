@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import requests
-import hyper.contrib
 import json
 import time
 import random
@@ -12,6 +11,7 @@ from collections import defaultdict
 
 ROLL_INTERVAL = 5
 USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/53.0.2763.0 Safari/537.36'
+HOST = 'https://worldroulette.ru/'
 
 
 class Map:
@@ -101,84 +101,85 @@ class Map:
         self.cached_max_level[region] = self.getLevel(region)
 
 
-class Bot:
-    host = 'https://worldroulette.ru/'
+class SessionManager:
 
     def __init__(self, sessions):
         self.sessions = sessions
         self.auth()
-        self.order = 'm'
-        self.last_roll = 0
-        resp = ''
-        try:
-            self.ids = []
-            self.player_cache = {}
-            for i in range(len(self.openers)):
-                resp = json.loads(self.open('getthis', {}, opener=i))
-                if not resp:
-                    print('Invalid session')
-                    sys.exit(1)
-                self.ids.append(str(list(resp)[0]))
-            self.map = Map(self.ids)
-            for name in self.getMapFilenames():
-                self.map.addMap(self.open(name))
-            print('Compound countries:', ', '.join(sorted(self.map.compound_countries)))
-            self.getMapInfo()
-            self.getPlayers(self.ids)
-            self.last_error = {}
-        except Exception as e:
-            print(resp or 'The server is down!')
-            traceback.print_exc()
-            sys.exit(1)
-
-    def getMapFilenames(self):
-        page = self.open('')
-        maps = re.findall(r'<script src="/(jquery-jvectormap-[a-z-]+\.js)"></script>', page)
-        return maps
-
-    def getPlayers(self, players):
-        players = [i for i in map(str, players) if i not in self.player_cache]
-        if players:
-            resp = self.open('getplayers?ids=[{}]'.format('%2C'.join(players)))
-            pg = json.loads(resp)
-            for i in pg:
-                pg[i]['fid'] = str(pg[i].get('fid', 0))
-                pg[i]['id'] = str(pg[i]['id'])
-            self.player_cache.update(pg)
 
     def auth(self):
         self.openers = []
+        self.ids = []
         for session in self.sessions:
             self.openers.append(requests.session())
-            self.openers[-1].mount(self.host, hyper.contrib.HTTP20Adapter())
             self.openers[-1].cookies['session'] = session
+            me = json.loads(self.open('getthis', {}, opener=-1))
+            if not me:
+                print('Invalid session:', session)
+                sys.exit(-1)
+            self.ids.append(str(list(me)[0]))
+        data = self.open('getplayers?ids=[{}]'.format('%2C'.join(self.ids)), opener=0)
+        names = json.loads(data)
+        self.names = [names[id]['name'] for id in self.ids]
 
-    def open(self, uri, params=None, opener=0):
+    def open(self, uri, params=None, opener=None):
         headers = {'Connection': None, 'User-agent': USER_AGENT}
         if params is not None:
             params = json.dumps(params).encode()
         for i in range(10):
             try:
                 if params is None:
-                    resp = self.openers[opener].get(self.host + uri, headers=headers)
+                    if opener is None:
+                        resp = requests.get(HOST + uri, headers=headers)
+                    else:
+                        resp = self.openers[opener].get(HOST + uri, headers=headers)
                 else:
                     headers['Content-type'] = 'application/json'
-                    resp = self.openers[opener].post(self.host + uri, headers=headers, data=params)
+                    if opener is None:
+                        resp = requests.post(HOST + uri, headers=headers, data=params)
+                    else:
+                        resp = self.openers[opener].post(HOST + uri, headers=headers, data=params)
                 resp.encoding = 'UTF-8'
                 return resp.text
             except Exception as e:
-                time.sleep(1)
                 self.auth()
         return ''
 
+
+
+class Bot:
+
+    def __init__(self, sessions):
+        self.conn = SessionManager(sessions)
+        self.order = 'm'
+        self.last_roll = 0
+        resp = ''
+        self.map = Map(self.conn.ids)
+        for name in self.getMapFilenames():
+            self.map.addMap(self.open(name))
+        print('Compound countries:', ', '.join(sorted(self.map.compound_countries)))
+        self.getMapInfo()
+        self.last_error = {}
+
+    def open(self, *args, **kwargs):
+        return self.conn.open(*args, **kwargs)
+
+    def getMapFilenames(self):
+        page = self.open('', opener=0)
+        maps = re.findall(r'<script src="/(jquery-jvectormap-[a-z-]+\.js)"></script>', page)
+        return maps
+
     def getMapInfo(self):
         try:
-            pg = json.loads(self.open('get', {}))
+            data = self.open('get')
+            pg = json.loads(data)
         except Exception:
+            traceback.print_exc()
             time.sleep(1)
             self.getMapInfo()
             return
         self.map.updateState(pg)
+
 
     def fight(self, country):
         try:
@@ -187,7 +188,7 @@ class Bot:
             if ctime < self.last_roll + ROLL_INTERVAL:
                 time.sleep(self.last_roll + ROLL_INTERVAL - ctime)
             self.last_roll = ctime
-            for i in range(len(self.openers)):
+            for i in range(len(self.conn.ids)):
                 res = self.open('roll', d, opener=i)
                 if not res:
                     continue
@@ -195,8 +196,13 @@ class Bot:
                 if res['result'] != 'error':
                     self.last_error[i] = None
                 if res['result'] == 'success':
-                    combo = res['numbers']
-                    print('.*#%@@@@'[combo], end='', flush=True)
+                    combo = 1
+                    num = re.search(r'\d{4}', res['data']).group(0)
+                    if num[-2] == num[-3]:
+                        combo = 2
+                        if num[-4] == num[-3]:
+                            combo = 3
+                    print('.*#@'[combo], end='', flush=True)
                     if 'вы успешно захватили' in res['data']:
                         print('Conquered')
                         return 'done'
@@ -209,7 +215,7 @@ class Bot:
                     print('.', end='', flush=True)
                 elif res['result'] == 'error':
                     if res['data'] != self.last_error.get(i) and res['data'] != 'Подождите немного!':
-                        print('[{} - {}]'.format(self.player_cache[self.ids[i]]['name'], res['data']), end='', flush=True)
+                        print('[{} - {}]'.format(self.conn.names[i], res['data']), end='', flush=True)
                     self.last_error[i] = res['data']
                 self.getMapInfo()
         except Exception as e:
@@ -260,12 +266,12 @@ class Bot:
 
     def sendToBatya(self, country):
         pname = self.map.getOwner(country, True)
-        if pname not in self.ids:
+        if pname not in self.conn.ids:
             return
-        pid = self.ids.index(pname)
+        pid = self.conn.ids.index(pname)
         if pid == 0:
             return
-        self.open('give', {'target': country, 'targetplid': self.ids[0]}, opener=pid)
+        self.open('give', {'target': country, 'targetplid': self.conn.ids[0]}, opener=pid)
 
     def sendAll(self, uid):
         self.getMapInfo()
@@ -279,9 +285,9 @@ class Bot:
             if uid == 'random':
                 res = ''
                 while not res.startswith('Территория'):
-                    res = self.open('give', {'target': c, 'targetplid': random.randint(1, 2000)})
+                    res = self.open('give', {'target': c, 'targetplid': random.randint(1, 3000)}, opener=0)
             else:
-                res = self.open('give', {'target': c, 'targetplid': uid})
+                res = self.open('give', {'target': c, 'targetplid': uid}, opener=0)
             print(res)
             count += 1
         print('Countries given:', count)
@@ -301,8 +307,8 @@ def main():
             sys.exit()
     bot = Bot(sessions)
     while True:
-        bot.auth()
         bot.order = 'c'
+        bot.conn.auth()
         for i in bot.last_error:
             bot.last_error[i] = None
         bot.getMapInfo()
