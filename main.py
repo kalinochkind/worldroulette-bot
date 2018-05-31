@@ -210,13 +210,22 @@ class Bot:
             if self.fight(country) == 'max':
                 return True
 
+
+    def matches(self, country, object_list):
+        for item in object_list:
+            if item == '*' or country.startswith(item.upper()) or self.map.country_names[country].upper().startswith(item.upper()):
+                return True
+            if item == self.map.getOwner(country, True) or self.map.getOwner(country).upper().startswith(item.upper()):
+                return True
+        return False
+
     def conquer(self, object_list):
         self.getMapInfo()
         while True:
             tmap = self.map.sortedList()
             changed = 0
             for name in tmap:
-                if name in object_list or name[:2] in object_list or self.map.getOwner(name, True) in object_list or '*' in object_list:
+                if self.matches(name, object_list):
                     if self.order == 'e':
                         changed += self.empowerCountry(name)
                     elif self.order == 'c':
