@@ -41,7 +41,9 @@ class Map:
             return self.world_state[country][1]
 
     def sortedList(self):
-        return sorted(self.world_state, key=self._pointsToWin)
+        countries = list(self.world_state)
+        random.shuffle(countries)
+        return sorted(countries, key=self._pointsToWin)
 
     def getPlayerList(self):
         countries = defaultdict(int)
