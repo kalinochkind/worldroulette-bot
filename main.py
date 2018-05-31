@@ -18,30 +18,20 @@ class Map:
 
     def __init__(self, me):
         self.country_names = {}
-        self.compound_countries = set()
         self.cached_max_level = {}
         self.me = me
 
     def addMap(self, data):
+        if not data.startswith('jQuery.fn.vectorMap('):
+            return
         data = data.replace('jQuery.fn.vectorMap(', '[').replace(');', ']').replace("'", '"')
         data = json.loads(data)[2]['paths']
         self.country_names.update({i: data[i]['name'] for i in data})
-        for name in data:
-            if '-' in name:
-                self.compound_countries.add(name.split('-')[0])
 
     def updateState(self, data):
         self.world_state = {}
-        self.local_state = {}
-        for section in data['map']:
-            for name, state in data['map'][section].items():
-                if section == 'world_mill':
-                    self.world_state[name] = (str(state['uid']), state['sp'])
-                else:
-                    country, region = name.split('-')
-                    if country not in self.local_state:
-                        self.local_state[country] = {}
-                    self.local_state[country][region] = (str(state['uid']), state['sp'])
+        for name, state in data['map'].items():
+            self.world_state[name] = (str(state['uid']), state['sp'])
         self.players = data['players']
 
     def _pointsToWin(self, country):
@@ -50,52 +40,30 @@ class Map:
         else:
             return self.world_state[country][1]
 
-    def _sortedRegions(self, country):
-        return sorted(self.local_state[country], key=lambda x: (self.local_state[country][x][0] in self.me, self.local_state[country][x][1]))
-
     def sortedList(self):
-        countries = sorted(self.world_state, key=self._pointsToWin)
-        regions = [[i + '-' + j for j in self._sortedRegions(i)] if i in self.compound_countries else [i] for i in countries]
-        return sum(regions, [])
+        return sorted(self.world_state, key=self._pointsToWin)
 
     def getPlayerList(self):
         countries = defaultdict(int)
         points = defaultdict(int)
         for name, value in self.world_state.items():
             countries[value[0]] += 1
-            if name not in self.compound_countries:
-                points[value[0]] += value[1]
-        for country in self.local_state:
-            for value in self.local_state[country].values():
-                points[value[0]] += value[1]
+            points[value[0]] += value[1]
         users = [{'id': i, 'name': self.players[i]['name'], 'countries': countries[i], 'points': points[i]}
                  for i in self.players if points[i]]
         return sorted(users, key=lambda x: (-x['countries'], -x['points'], x['id']))
 
-    def isMine(self, region, literally=False):
-        if literally:
-            return self._getRegion(region)[0] in self.me
-        if region in self.world_state:
-            return self.world_state[region][0] in self.me
-        else:
-            country, region = region.split('-')
-            return self.world_state[country][0] in self.me
-
-    def _getRegion(self, region):
-        if region in self.world_state:
-            return self.world_state[region]
-        else:
-            country, region = region.split('-')
-            return self.local_state[country][region]
+    def isMine(self, region):
+        return self.world_state[region][0] in self.me
 
     def getLevel(self, region):
-        return self._getRegion(region)[1]
+        return self.world_state[region][1]
 
     def getOwner(self, region, id=False):
         if id:
-            return self._getRegion(region)[0]
+            return self.world_state[region][0]
         else:
-            return self.players[self._getRegion(region)[0]]['name']
+            return self.players[self.world_state[region][0]]['name']
 
     def updateMaxLevel(self, region):
         self.cached_max_level[region] = self.getLevel(region)
@@ -157,7 +125,6 @@ class Bot:
         self.map = Map(self.conn.ids)
         for name in self.getMapFilenames():
             self.map.addMap(self.open(name))
-        print('Compound countries:', ', '.join(sorted(self.map.compound_countries)))
         self.getMapInfo()
         self.last_error = {}
 
@@ -166,7 +133,7 @@ class Bot:
 
     def getMapFilenames(self):
         page = self.open('', opener=0)
-        maps = re.findall(r'<script src="/(jquery-jvectormap-[a-z-]+\.js)"></script>', page)
+        maps = re.findall(r'<script src="/([a-z-]*map[a-z-]*.js)"></script>', page)
         return maps
 
     def getMapInfo(self):
