@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import argparse
 import requests
 import json
 import time
@@ -8,17 +9,27 @@ import sys
 import re
 import traceback
 from collections import defaultdict
+from functools import partial
 
-ROLL_INTERVAL = 5
+CAPTCHA_WAIT_INTERVAL = 30
+ROLL_INTERVAL = 5.2
 USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/53.0.2763.0 Safari/537.36'
 HOST = 'https://worldroulette.ru/'
+MAX_LEVEL = 3
 
+
+def parse_args():
+    parser = argparse.ArgumentParser(description='Bot for worldroulette.ru')
+    parser.add_argument('sessions', nargs='*', help='session cookies from your browser')
+    parser.add_argument('-c', '--no-captcha', action='store_true', help='(almost) suppress captcha warnings')
+    return parser.parse_args()
+
+args = parse_args()
 
 class Map:
 
     def __init__(self, me):
         self.country_names = {}
-        self.cached_max_level = {}
         self.me = me
 
     def addMap(self, data):
@@ -67,9 +78,6 @@ class Map:
         else:
             return self.players[self.world_state[region][0]]['name']
 
-    def updateMaxLevel(self, region):
-        self.cached_max_level[region] = self.getLevel(region)
-
 
 class SessionManager:
 
@@ -116,19 +124,63 @@ class SessionManager:
         return ''
 
 
+class Roller:
+
+    def __init__(self, open_proc):
+        self.open_proc = open_proc
+        self.last_roll = 0
+        self.last_non_captcha = 0
+        self.last_error = None
+
+    def roll(self, target):
+        now = time.time()
+        if now < self.last_roll + ROLL_INTERVAL:
+            time.sleep(self.last_roll + ROLL_INTERVAL - now)
+        self.last_roll = time.time()
+
+        data = {'target': target, 'captcha': ''}
+        res = self.open_proc('roll', data)
+        if not res:
+            return ''
+        res = json.loads(res)
+        if res['result'] == 'error':
+            if res['data'].startswith('Нет капчи') and args.no_captcha and time.time() < self.last_non_captcha + CAPTCHA_WAIT_INTERVAL:
+                return ''
+            if res['data'].startswith('Подождите немного'):
+                return ''
+            if res['data'] != self.last_error:
+                self.last_error = res['data']
+                return 'error'
+            return ''
+        else:
+            self.last_error = None
+            self.last_non_captcha = time.time()
+            if res['result'] == 'success':
+                combo = 1
+                num = re.search(r'\d{4}', res['data']).group(0)
+                if num[-2] == num[-3]:
+                    combo = 2
+                    if num[-4] == num[-3]:
+                        combo = 3
+                print('.*#@'[combo], end='', flush=True)
+                if 'вы успешно захватили' in res['data']:
+                    return 'done'
+            elif res['result'] == 'note' and 'уже улучшена' in res['data']:
+                return 'max'
+            elif res['result'] == 'fail':
+                print('.', end='', flush=True)
+                return 'fail'
 
 class Bot:
 
     def __init__(self, sessions):
         self.conn = SessionManager(sessions)
         self.order = 'm'
-        self.last_roll = 0
-        resp = ''
         self.map = Map(self.conn.ids)
+        self.rollers = [Roller(partial(self.conn.open, opener=i)) for i in range(len(self.conn.ids))]
         for name in self.getMapFilenames():
             self.map.addMap(self.open(name))
         self.getMapInfo()
-        self.last_error = {}
 
     def open(self, *args, **kwargs):
         return self.conn.open(*args, **kwargs)
@@ -152,46 +204,16 @@ class Bot:
 
     def fight(self, country):
         try:
-            d = {'target': country, 'captcha': ''}
-            ctime = time.time()
-            if ctime < self.last_roll + ROLL_INTERVAL:
-                time.sleep(self.last_roll + ROLL_INTERVAL - ctime)
-            self.last_roll = ctime
-            for i in range(len(self.conn.ids)):
-                res = self.open('roll', d, opener=i)
-                if not res:
-                    continue
-                res = json.loads(res)
-                if res['result'] != 'error':
-                    self.last_error[i] = None
-                if res['result'] == 'success':
-                    combo = 1
-                    num = re.search(r'\d{4}', res['data']).group(0)
-                    if num[-2] == num[-3]:
-                        combo = 2
-                        if num[-4] == num[-3]:
-                            combo = 3
-                    print('.*#@'[combo], end='', flush=True)
-                    if 'вы успешно захватили' in res['data']:
-                        print('Conquered')
-                        return 'done'
-                elif res['result'] == 'note' and 'уже улучшена' in res['data']:
-                    print('Finished')
-                    self.getMapInfo()
-                    self.map.updateMaxLevel(country)
-                    return 'max'
-                elif res['result'] == 'fail':
-                    print('.', end='', flush=True)
-                elif res['result'] == 'error':
-                    if res['data'] != self.last_error.get(i) and res['data'] != 'Подождите немного!':
-                        print('[{} - {}]'.format(self.conn.names[i], res['data']), end='', flush=True)
-                    self.last_error[i] = res['data']
-                self.getMapInfo()
+            for num, roller in enumerate(self.rollers):
+                res = roller.roll(country)
+                if res == 'error':
+                    print('[{} - {}]'.format(self.conn.names[num], roller.last_error), end='', flush=True)
+                elif res == 'done':
+                    print('Conquered', flush=True)
         except Exception as e:
             traceback.print_exc()
             time.sleep(1)
-            self.getMapInfo()
-            return 'error'
+        self.getMapInfo()
 
     def conquerCountry(self, country):
         if self.map.isMine(country):
@@ -205,12 +227,11 @@ class Bot:
         return True
 
     def empowerCountry(self, country):
-        if not self.map.isMine(country) or self.map.getLevel(country) >= self.map.cached_max_level.get(country, 10):
+        if not self.map.isMine(country) or self.map.getLevel(country) >= MAX_LEVEL:
             return False
         print('\nEmpowering {} ({}), level {}'.format(country, self.map.country_names[country], self.map.getLevel(country)))
-        while True:
-            if self.fight(country) == 'max':
-                return True
+        while self.map.getLevel(country) < MAX_LEVEL:
+            self.fight(country)
 
 
     def matches(self, country, object_list):
@@ -223,6 +244,8 @@ class Bot:
 
     def conquer(self, object_list):
         self.getMapInfo()
+        for roller in self.rollers:
+            roller.last_error = None
         while True:
             tmap = self.map.sortedList()
             changed = 0
@@ -273,8 +296,8 @@ class Bot:
 
 
 def main():
-    if len(sys.argv) > 1:
-        sessions = sys.argv[1:]
+    if args.sessions:
+        sessions = args.sessions
         with open('accounts.txt', 'w') as f:
             f.write(' '.join(sessions))
     else:
@@ -287,8 +310,6 @@ def main():
     while True:
         bot.order = 'c'
         bot.conn.auth()
-        for i in bot.last_error:
-            bot.last_error[i] = None
         bot.getMapInfo()
         print('Users on the map:\n' + '\n'.join('[{id:4}] {name} ({countries}, {points})'.format(**i) for i in bot.map.getPlayerList()))
         print()
