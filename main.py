@@ -11,7 +11,7 @@ import traceback
 from collections import defaultdict
 from functools import partial
 
-CAPTCHA_WAIT_INTERVAL = 30
+CAPTCHA_WAIT_INTERVAL = 45
 ROLL_INTERVAL = 5.2
 USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/53.0.2763.0 Safari/537.36'
 HOST = 'https://worldroulette.ru/'
@@ -232,6 +232,7 @@ class Bot:
         print('\nEmpowering {} ({}), level {}'.format(country, self.map.country_names[country], self.map.getLevel(country)))
         while self.map.getLevel(country) < MAX_LEVEL:
             self.fight(country)
+        print()
         return True
 
 
