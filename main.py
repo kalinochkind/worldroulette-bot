@@ -232,6 +232,7 @@ class Bot:
         print('\nEmpowering {} ({}), level {}'.format(country, self.map.country_names[country], self.map.getLevel(country)))
         while self.map.getLevel(country) < MAX_LEVEL:
             self.fight(country)
+        return True
 
 
     def matches(self, country, object_list):
@@ -257,7 +258,7 @@ class Bot:
                         changed += self.conquerCountry(name)
                     else:
                         changed += self.conquerCountry(name)
-                        changed +=self.empowerCountry(name)
+                        changed += self.empowerCountry(name)
                     if changed:
                         break
             else:
