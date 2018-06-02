@@ -201,6 +201,9 @@ class Bot:
             return
         self.map.updateState(pg)
 
+    def getOnline(self):
+        data = self.open('online', opener=0)
+        return list(map(str, json.loads(data)))
 
     def fight(self, country):
         try:
@@ -236,11 +239,13 @@ class Bot:
         return True
 
 
-    def matches(self, country, object_list):
+    def matches(self, country, object_list, online_list):
         for item in object_list:
             if item == '*' or country.startswith(item.upper()) or self.map.country_names[country].upper().startswith(item.upper()):
                 return True
             if item == self.map.getOwner(country, True) or self.map.getOwner(country).upper().startswith(item.upper()):
+                return True
+            if item.upper() == 'OFFLINE' and self.map.getOwner(country, True) not in online_list:
                 return True
         return False
 
@@ -251,8 +256,9 @@ class Bot:
         while True:
             tmap = self.map.sortedList()
             changed = 0
+            online_list = self.getOnline()
             for name in tmap:
-                if self.matches(name, object_list):
+                if self.matches(name, object_list, online_list):
                     if self.order == 'e':
                         changed += self.empowerCountry(name)
                     elif self.order == 'c':
