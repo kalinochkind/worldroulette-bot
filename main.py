@@ -289,7 +289,7 @@ class Bot:
         self.getMapInfo()
         count = 0
         for c in self.map.sortedList():
-            if not self.map.isMine(c, True):
+            if not self.map.isMine(c):
                 continue
             if uid == 'random':
                 res = ''
