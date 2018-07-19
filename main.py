@@ -310,7 +310,7 @@ def main():
             sys.exit()
     bot = Bot(sessions)
     while True:
-        bot.order = 'c'
+        bot.order = 'a'
         bot.conn.auth()
         bot.getMapInfo()
         print('Users on the map:\n' + '\n'.join('[{id:4}] {name} ({countries}, {points})'.format(**i) for i in bot.map.getPlayerList()))
