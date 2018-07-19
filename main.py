@@ -144,7 +144,7 @@ class Roller:
             return ''
         res = json.loads(res)
         if res['result'] == 'error':
-            if res['data'].startswith('Нет капчи') and args.no_captcha and time.time() < self.last_non_captcha + CAPTCHA_WAIT_INTERVAL:
+            if res['data'].startswith('ReCaptcha') and args.no_captcha and time.time() < self.last_non_captcha + CAPTCHA_WAIT_INTERVAL:
                 return ''
             if res['data'].startswith('Подождите немного'):
                 return ''
