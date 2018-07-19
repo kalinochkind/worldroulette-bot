@@ -11,8 +11,8 @@ import traceback
 from collections import defaultdict
 from functools import partial
 
-CAPTCHA_WAIT_INTERVAL = 45
-ROLL_INTERVAL = 5.2
+CAPTCHA_WAIT_INTERVAL = 20
+ROLL_INTERVAL = 1.1
 USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/53.0.2763.0 Safari/537.36'
 HOST = 'https://worldroulette.ru/'
 MAX_LEVEL = 3
@@ -178,17 +178,11 @@ class Bot:
         self.order = 'm'
         self.map = Map(self.conn.ids)
         self.rollers = [Roller(partial(self.conn.open, opener=i)) for i in range(len(self.conn.ids))]
-        for name in self.getMapFilenames():
-            self.map.addMap(self.open(name))
+        self.map.addMap(self.open('world_mill_ru.js'))
         self.getMapInfo()
 
     def open(self, *args, **kwargs):
         return self.conn.open(*args, **kwargs)
-
-    def getMapFilenames(self):
-        page = self.open('', opener=0)
-        maps = re.findall(r'<script src="/([a-z-]*map[a-z-]*.js)"></script>', page)
-        return maps
 
     def getMapInfo(self):
         try:
