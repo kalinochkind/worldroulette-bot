@@ -202,7 +202,7 @@ class Bot:
 
     def getOnline(self):
         data = self.open('online', opener=0)
-        return list(map(str, json.loads(data)))
+        return list(map(str, json.loads(data)['online']))
 
     def fight(self, country):
         try:
