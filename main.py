@@ -289,7 +289,7 @@ class Bot:
                 continue
             if uid == 'random':
                 res = ''
-                while not res.startswith('Территория'):
+                while 'теперь принадлежит' not in res:
                     res = self.open('give', {'target': c, 'targetplid': random.randint(1, 3000)}, opener=0)
             else:
                 res = self.open('give', {'target': c, 'targetplid': uid}, opener=0)
