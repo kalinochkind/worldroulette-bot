@@ -140,10 +140,7 @@ class Roller:
             time.sleep(self.last_roll + ROLL_INTERVAL - now)
         self.last_roll = time.time()
 
-        params = json.loads(self.open_proc('preroll'))
-        secret = get_secret([params['r1'], params['r2'], params['r3'], params['r4']])
-
-        data = {'target': target, 'captcha': '', 'secret': secret}
+        data = {'target': target}
         res = self.open_proc('roll', data)
         if not res:
             return ''
@@ -302,15 +299,6 @@ class Bot:
         self.getMapInfo()
 
 
-def prepare_secret():
-    if not os.path.isfile('secret') or os.path.getmtime('secret') < os.path.getmtime('secret.c'):
-        print('Compiling secret module')
-        subprocess.run(['gcc', 'secret.c', '-o', 'secret'])
-
-def get_secret(params):
-    return float(subprocess.run(['./secret', ' '.join(map(str, params))], stdout=subprocess.PIPE).stdout.decode())
-
-
 def main():
     if args.sessions:
         sessions = args.sessions
@@ -323,7 +311,6 @@ def main():
             print('accounts.txt does not exist')
             sys.exit()
     bot = Bot(sessions)
-    prepare_secret()
     while True:
         bot.order = 'a'
         bot.conn.auth()
