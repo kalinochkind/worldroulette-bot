@@ -269,12 +269,12 @@ class Bot:
             if not changed:
                 return
 
-    def sendToBatya(self, country):
+    def sendToBatya(self, country, force=False):
         pname = self.map.getOwner(country, True)
         if pname not in self.conn.ids:
             return
         pid = self.conn.ids.index(pname)
-        if pid == 0:
+        if pid == 0 and not force:
             return
         self.open('give', {'target': country, 'targetplid': self.conn.ids[0]}, opener=pid)
 
@@ -297,6 +297,18 @@ class Bot:
             count += 1
         print('Countries given:', count)
         self.getMapInfo()
+
+    def laser(self, object_list):
+        updated = 0
+        while True:
+            now = time.time()
+            if now - updated > 15:
+                self.getMapInfo()
+                updated = now
+            for country in self.map.world_state:
+                if self.map.isMine(country) and self.matches(self, object_list, []):
+                    self.sendToBatya(country, force=True)
+
 
 
 def main():
@@ -329,6 +341,14 @@ def main():
             bot.sendAll(c[1])
             print()
             continue
+        if c and c[0] == 'laser':
+            if len(c) != 2:
+                print('What to laser?\n')
+                continue
+            try:
+                bot.laser(c[1:])
+            except KeyboardInterrupt:
+                continue
         if c and len(c[0]) == 1 and c[0] in 'eca':
             bot.order = c[0]
             c = c[1:]
