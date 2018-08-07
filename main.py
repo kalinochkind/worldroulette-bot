@@ -10,19 +10,13 @@ import re
 import traceback
 import os
 import subprocess
-import threading
 from collections import defaultdict
 from functools import partial
-
-from socketIO_client import SocketIO
-
 
 CAPTCHA_WAIT_INTERVAL = 20
 ROLL_INTERVAL = 1.1
 USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/53.0.2763.0 Safari/537.36'
 HOST = 'https://worldroulette.ru/'
-WS_HOST = 'https://socket.worldroulette.ru'
-WS_PORT = 444
 MAX_LEVEL = 3
 
 
@@ -33,27 +27,6 @@ def parse_args():
     return parser.parse_args()
 
 args = parse_args()
-
-
-class SocketListener:
-
-    def __init__(self):
-        self.secret = None
-        self._thread = threading.Thread(target=self.monitor, daemon=True)
-        self._thread.start()
-
-    def monitor(self):
-        sio = SocketIO(WS_HOST, WS_PORT)
-        sio.on('message', self.update_secret)
-        sio.wait()
-
-    def update_secret(self, data):
-        if not data.startswith(b'2'):
-            return
-        msg = json.loads(data[1:].decode())
-        if msg[0] == 'secret':
-            self.secret = msg[1]
-
 
 class Map:
 
@@ -155,9 +128,8 @@ class SessionManager:
 
 class Roller:
 
-    def __init__(self, open_proc, listener):
+    def __init__(self, open_proc):
         self.open_proc = open_proc
-        self.listener = listener
         self.last_roll = 0
         self.last_non_captcha = 0
         self.last_error = None
@@ -168,7 +140,7 @@ class Roller:
             time.sleep(self.last_roll + ROLL_INTERVAL - now)
         self.last_roll = time.time()
 
-        data = {'target': target, 'secret': self.listener.secret}
+        data = {'target': target}
         res = self.open_proc('roll', data)
         if not res:
             return ''
@@ -206,9 +178,8 @@ class Bot:
     def __init__(self, sessions):
         self.conn = SessionManager(sessions)
         self.order = 'm'
-        listener = SocketListener()
         self.map = Map(self.conn.ids)
-        self.rollers = [Roller(partial(self.conn.open, opener=i), listener) for i in range(len(self.conn.ids))]
+        self.rollers = [Roller(partial(self.conn.open, opener=i)) for i in range(len(self.conn.ids))]
         self.map.addMap(self.open('world_mill_ru.js'))
         self.getMapInfo()
 
