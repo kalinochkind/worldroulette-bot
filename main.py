@@ -13,7 +13,7 @@ import subprocess
 from collections import defaultdict
 from functools import partial
 
-CAPTCHA_WAIT_INTERVAL = 20
+CAPTCHA_WAIT_INTERVAL = 25
 ROLL_INTERVAL = 1.1
 USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/53.0.2763.0 Safari/537.36'
 HOST = 'https://worldroulette.ru/'
@@ -23,7 +23,7 @@ MAX_LEVEL = 3
 def parse_args():
     parser = argparse.ArgumentParser(description='Bot for worldroulette.ru')
     parser.add_argument('sessions', nargs='*', help='session cookies from your browser')
-    parser.add_argument('-c', '--no-captcha', action='store_true', help='(almost) suppress captcha warnings')
+    parser.add_argument('-c', '--captcha', action='store_true', help='always captcha warnings')
     return parser.parse_args()
 
 args = parse_args()
@@ -146,7 +146,7 @@ class Roller:
             return ''
         res = json.loads(res)
         if res['result'] == 'error':
-            if res['data'].startswith('ReCaptcha') and args.no_captcha and time.time() < self.last_non_captcha + CAPTCHA_WAIT_INTERVAL:
+            if res['data'].startswith('ReCaptcha') and not args.captcha and time.time() < self.last_non_captcha + CAPTCHA_WAIT_INTERVAL:
                 return ''
             if res['data'].startswith('Подождите немного'):
                 return ''
