@@ -173,6 +173,16 @@ class Roller:
                 print('.', end='', flush=True)
                 return 'fail'
 
+
+def lookup_factions(ids, players, open_proc):
+    factions = {i: players[i].get('fid') or None for i in ids if i in players}
+    remaining = [i for i in ids if i not in players]
+    if remaining:
+        res = json.loads(open_proc('getplayers?ids=[' + ','.join(remaining) + ']'))
+        factions.update({i: res[i].get('fid') or None for i in remaining})
+    return factions
+
+
 class Bot:
 
     def __init__(self, sessions):
@@ -241,8 +251,15 @@ class Bot:
                 return True
             if item == self.map.getOwner(country, True) or self.map.getOwner(country).upper().startswith(item.upper()):
                 return True
-            if item.upper() == 'OFFLINE' and self.map.getOwner(country, True) not in online_list:
-                return True
+            if item.upper() == 'OFFLINE':
+                if self.map.isMine(country):
+                    return True
+                owner = self.map.getOwner(country, True)
+                if owner in online_list:
+                    return False
+                factions = lookup_factions(online_list + [owner], self.map.players, partial(self.conn.open, opener=0))
+                if factions[owner] not in [factions[i] for i in online_list if factions[i] is not None]:
+                    return True
         return False
 
     def conquer(self, object_list):
