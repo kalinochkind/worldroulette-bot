@@ -245,7 +245,7 @@ class Bot:
         return True
 
 
-    def matches(self, country, object_list, online_list):
+    def matches(self, country, object_list, online_with_factions):
         for item in object_list:
             if item == '*' or country.startswith(item.upper()) or self.map.country_names[country].upper().startswith(item.upper()):
                 return True
@@ -255,10 +255,9 @@ class Bot:
                 if self.map.isMine(country):
                     return True
                 owner = self.map.getOwner(country, True)
-                if owner in online_list:
+                if owner in online_with_factions:
                     return False
-                factions = lookup_factions(online_list + [owner], self.map.players, partial(self.conn.open, opener=0))
-                if factions[owner] not in [factions[i] for i in online_list if factions[i] is not None]:
+                if self.map.players[owner].get('fid') not in filter(bool, online_with_factions.values()):
                     return True
         return False
 
@@ -270,8 +269,9 @@ class Bot:
             tmap = self.map.sortedList()
             changed = 0
             online_list = self.getOnline()
+            online_with_factions = lookup_factions(online_list, self.map.players, partial(self.conn.open, opener=0))
             for name in tmap:
-                if self.matches(name, object_list, online_list):
+                if self.matches(name, object_list, online_with_factions):
                     if self.order == 'e':
                         changed += self.empowerCountry(name)
                     elif self.order == 'c':
