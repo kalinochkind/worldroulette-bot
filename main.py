@@ -110,15 +110,15 @@ class SessionManager:
             try:
                 if params is None:
                     if opener is None:
-                        resp = requests.get(HOST + uri, headers=headers)
+                        resp = requests.get(HOST + uri, headers=headers, timeout=3)
                     else:
-                        resp = self.openers[opener].get(HOST + uri, headers=headers)
+                        resp = self.openers[opener].get(HOST + uri, headers=headers, timeout=3)
                 else:
                     headers['Content-type'] = 'application/json'
                     if opener is None:
-                        resp = requests.post(HOST + uri, headers=headers, data=params)
+                        resp = requests.post(HOST + uri, headers=headers, data=params, timeout=3)
                     else:
-                        resp = self.openers[opener].post(HOST + uri, headers=headers, data=params)
+                        resp = self.openers[opener].post(HOST + uri, headers=headers, data=params, timeout=3)
                 resp.encoding = 'UTF-8'
                 return resp.text
             except Exception as e:
