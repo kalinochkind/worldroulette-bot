@@ -126,6 +126,35 @@ class SessionManager:
         return ''
 
 
+class ItemManager:
+
+    def __init__(self, open_proc):
+        self.open_proc = open_proc
+
+    def adjust_items(self):
+        data = json.loads(self.open_proc('inventory'))
+        total = defaultdict(float)
+        for item in data['items']:
+            stats = self.parse_stats(item['stats'])
+            want = self.should_take(stats, total)
+            if want:
+                for i in stats:
+                    total[i] += stats[i]
+            if bool(want) != bool(item['enabled']):
+                self.open_proc('toggleItem', {'aid': item['aid']})
+                print(('Enabling' if want else 'Disabling'), item['name_ru'])
+
+    def parse_stats(self, stats):
+        stats = [i.split('=') for i in stats.split('&')]
+        return {i[0]: float(i[1]) for i in stats}
+
+    def should_take(self, item_stats, total_stats):
+        if item_stats.get('luck', 0) > 0 and total_stats['luck'] < 1.499:
+            return True
+        if item_stats.get('defence', 0) > 0 and total_stats['defence'] < 1.499:
+            return True
+        return False
+
 class Roller:
 
     def __init__(self, open_proc):
@@ -190,6 +219,7 @@ class Bot:
         self.order = 'm'
         self.map = Map(self.conn.ids)
         self.rollers = [Roller(partial(self.conn.open, opener=i)) for i in range(len(self.conn.ids))]
+        self.item_managers = [ItemManager(partial(self.conn.open, opener=i)) for i in range(len(self.conn.ids))]
         self.map.addMap(self.open('world_mill_ru.js'))
         self.getMapInfo()
 
@@ -233,6 +263,7 @@ class Bot:
         while not self.map.isMine(country):
             self.fight(country)
         self.sendToBatya(country)
+        self.adjust_items()
         return True
 
     def empowerCountry(self, country):
@@ -242,6 +273,7 @@ class Bot:
         while self.map.getLevel(country) < MAX_LEVEL:
             self.fight(country)
         print()
+        self.adjust_items()
         return True
 
 
@@ -263,6 +295,7 @@ class Bot:
 
     def conquer(self, object_list):
         self.getMapInfo()
+        self.adjust_items()
         for roller in self.rollers:
             roller.last_error = None
         while True:
@@ -285,6 +318,10 @@ class Bot:
                 return
             if not changed:
                 return
+
+    def adjust_items(self):
+        for mgr in self.item_managers:
+            mgr.adjust_items()
 
     def sendToBatya(self, country, force=False):
         pname = self.map.getOwner(country, True)
