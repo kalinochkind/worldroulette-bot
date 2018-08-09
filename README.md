@@ -1,3 +1,3 @@
 # worldroulette-bot
 
-Запуск: `main.py [session]`
+Запуск: `main.py [-c] [session]`
