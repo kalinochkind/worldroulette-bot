@@ -85,9 +85,14 @@ class SessionManager:
 
     def __init__(self, sessions):
         self.sessions = sessions
+        self._auth_attempts = 0
         self.auth()
 
     def auth(self):
+        self._auth_attempts += 1
+        if self._auth_attempts > 10:
+            print('\nAuth failed')
+            sys.exit(1)
         self.openers = []
         self.ids = []
         for session in self.sessions:
@@ -101,6 +106,7 @@ class SessionManager:
         data = self.open('getplayers?ids=[{}]'.format('%2C'.join(self.ids)), opener=0)
         names = json.loads(data)
         self.names = [names[id]['name'] for id in self.ids]
+        self._auth_attempts = 0
 
     def open(self, uri, params=None, opener=None):
         headers = {'Connection': None, 'User-agent': USER_AGENT}
@@ -122,6 +128,7 @@ class SessionManager:
                 resp.encoding = 'UTF-8'
                 return resp.text
             except Exception as e:
+                time.sleep(1)
                 self.auth()
         return ''
 
