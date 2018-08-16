@@ -149,7 +149,7 @@ class ItemManager:
     def adjust_items(self):
         data = json.loads(self.open_proc('inventory'))
         total = defaultdict(float)
-        for item in data['items']:
+        for item in sorted(data['items'], key=lambda x: x['uses'], reverse=True):
             stats = self.parse_stats(item['stats'])
             want = self.should_take(stats, total)
             if want:
@@ -336,7 +336,6 @@ class Bot:
 
     def conquer(self, object_list, order):
         self.getMapInfo()
-        self.adjust_items()
         for roller in self.rollers:
             roller.last_error = None
         while True:
@@ -412,6 +411,7 @@ def main():
         bot.mode = 'a'
         bot.conn.auth()
         bot.getMapInfo()
+        bot.adjust_items()
         print('Users on the map:\n' + '\n'.join('[{id:4}] {name} ({countries}, {points})'.format(**i) for i in bot.map.getPlayerList()))
         print()
         try:
@@ -419,6 +419,8 @@ def main():
         except EOFError:
             print()
             return
+        if not c:
+            continue
         if c and c[0] == 'give':
             if len(c) != 2:
                 print('Usage: give (UID|random)\n')
@@ -437,6 +439,8 @@ def main():
         if c and len(c[0]) == 1 and c[0] in 'eca':
             bot.mode = c[0]
             c = c[1:]
+        if c == ['*']:
+            c = []
         c = list(map(str.upper, c))
         bot.getMapInfo()
         try:
