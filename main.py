@@ -334,26 +334,30 @@ class Bot:
         return True
 
 
+    def list_countries(self, object_list, order):
+        tmap = self.map.sortedList(order)
+        online_list = self.getOnline()
+        online_with_factions = lookup_factions(online_list, self.map.players, partial(self.conn.open, opener=0))
+        res = [name for name in tmap if self.matcher.matches(name, object_list, online_with_factions)]
+        return res
+
+
     def conquer(self, object_list, order):
         self.getMapInfo()
         for roller in self.rollers:
             roller.last_error = None
         while True:
-            tmap = self.map.sortedList(order)
             changed = 0
-            online_list = self.getOnline()
-            online_with_factions = lookup_factions(online_list, self.map.players, partial(self.conn.open, opener=0))
-            for name in tmap:
-                if self.matcher.matches(name, object_list, online_with_factions):
-                    if self.mode == 'e':
-                        changed += self.empowerCountry(name)
-                    elif self.mode == 'c':
-                        changed += self.conquerCountry(name)
-                    else:
-                        changed += self.conquerCountry(name)
-                        changed += self.empowerCountry(name)
-                    if changed:
-                        break
+            for name in self.list_countries(object_list, order):
+                if self.mode == 'e':
+                    changed += self.empowerCountry(name)
+                elif self.mode == 'c':
+                    changed += self.conquerCountry(name)
+                else:
+                    changed += self.conquerCountry(name)
+                    changed += self.empowerCountry(name)
+                if changed:
+                    break
             else:
                 return
             if not changed:
@@ -421,14 +425,14 @@ def main():
             return
         if not c:
             continue
-        if c and c[0] == 'give':
+        if c[0] == 'give':
             if len(c) != 2:
                 print('Usage: give (UID|random)\n')
                 continue
             bot.sendAll(c[1])
             print()
             continue
-        if c and c[0] == 'order':
+        if c[0] == 'order':
             if len(c) == 1:
                 print(order, '\n')
                 continue
@@ -436,7 +440,13 @@ def main():
                 print('Available orders:', ', '.join(ORDERS), '\n')
                 continue
             order = c[1]
-        if c and len(c[0]) == 1 and c[0] in 'eca':
+        action = ''
+        if c[0] == 'list':
+            for c in bot.list_countries(list(map(str.upper, c[1:])), order):
+                print(c.ljust(5), bot.map.country_names[c])
+            print()
+            continue
+        if len(c[0]) == 1 and c[0] in 'eca':
             bot.mode = c[0]
             c = c[1:]
         if c == ['*']:
