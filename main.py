@@ -451,6 +451,13 @@ def main():
                 print(c.ljust(5), bot.map.country_names[c])
             print()
             continue
+        if c[0] == 'defend':
+            try:
+                while True:
+                    bot.adjust_items()
+                    time.sleep(5)
+            except KeyboardInterrupt:
+                continue
         if len(c[0]) == 1 and c[0] in 'eca':
             bot.mode = c[0]
             c = c[1:]
