@@ -7,6 +7,7 @@ import random
 import sys
 import re
 import traceback
+import readline
 from collections import defaultdict
 from functools import partial
 
