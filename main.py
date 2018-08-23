@@ -382,21 +382,22 @@ class Bot:
             return
         self.open('give', {'target': country, 'targetplid': self.conn.ids[0]}, opener=pid)
 
-    def send_all(self, uid):
+    def send_countries(self, uid, objects, order):
         self.update_map()
-        for c in self.map.sorted_list():
+        for c in self.list_countries(objects, order):
             self.send_to_batya(c)
         self.update_map()
         count = 0
-        for c in self.map.sorted_list():
+        for c in self.list_countries(objects, order):
             if not self.map.is_mine(c):
                 continue
-            if uid == 'random':
-                res = ''
-                while 'теперь принадлежит' not in res:
+            res = ''
+            while 'теперь принадлежит' not in res:
+                if uid == 'random':
                     res = self.open('give', {'target': c, 'targetplid': random.randint(1, 3000)}, opener=0)
-            else:
-                res = self.open('give', {'target': c, 'targetplid': uid}, opener=0)
+                else:
+                    res = self.open('give', {'target': c, 'targetplid': uid}, opener=0)
+                time.sleep(1)
             print(res)
             count += 1
         print('Countries given:', count)
@@ -432,41 +433,38 @@ def main():
             return
         if not c:
             continue
-        if c[0] == 'give':
-            if len(c) != 2:
-                print('Usage: give (UID|random)\n')
+        try:
+            if c[0] == 'give':
+                if len(c) < 2:
+                    print('Usage: give (UID|random) [objects]\n')
+                    continue
+                bot.send_countries(c[1], list(map(str.upper, c[1:])), order)
+                print()
                 continue
-            bot.send_all(c[1])
-            print()
-            continue
-        if c[0] == 'order':
-            if len(c) == 1:
-                print(order, '\n')
+            if c[0] == 'order':
+                if len(c) == 1:
+                    print(order, '\n')
+                    continue
+                if len(c) != 2 or c[1] not in ORDERS:
+                    print('Available orders:', ', '.join(ORDERS), '\n')
+                    continue
+                order = c[1]
+            if c[0] == 'list':
+                for c in bot.list_countries(list(map(str.upper, c[1:])), order):
+                    print(c.ljust(5), bot.map.country_names[c])
+                print()
                 continue
-            if len(c) != 2 or c[1] not in ORDERS:
-                print('Available orders:', ', '.join(ORDERS), '\n')
-                continue
-            order = c[1]
-        if c[0] == 'list':
-            for c in bot.list_countries(list(map(str.upper, c[1:])), order):
-                print(c.ljust(5), bot.map.country_names[c])
-            print()
-            continue
-        if c[0] == 'defend':
-            try:
+            if c[0] == 'defend':
                 while True:
                     bot.adjust_items()
                     time.sleep(5)
-            except KeyboardInterrupt:
-                continue
-        if len(c[0]) == 1 and c[0] in 'eca':
-            bot.mode = c[0]
-            c = c[1:]
-        if c == ['*']:
-            c = []
-        c = list(map(str.upper, c))
-        bot.update_map()
-        try:
+            if len(c[0]) == 1 and c[0] in 'eca':
+                bot.mode = c[0]
+                c = c[1:]
+            if c == ['*']:
+                c = []
+            c = list(map(str.upper, c))
+            bot.update_map()
             for country in bot.map.sorted_list():
                 bot.send_to_batya(country)
             bot.conquer(c, order)
