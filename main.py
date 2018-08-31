@@ -438,7 +438,7 @@ def main():
                 if len(c) < 2:
                     print('Usage: give (UID|random) [objects]\n')
                     continue
-                bot.send_countries(c[1], list(map(str.upper, c[1:])), order)
+                bot.send_countries(c[1], list(map(str.upper, c[2:])), order)
                 print()
                 continue
             if c[0] == 'order':
