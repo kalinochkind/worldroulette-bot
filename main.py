@@ -261,7 +261,12 @@ class CountryMatcher:
     def matches(self, country, object_list, online_list):
         matched = False
         positive = False
+        levels = [1, 2, 3]
         for item in object_list:
+            if item.startswith('^'):
+                if item[1:].isdigit():
+                    levels = list(map(int, item[1:]))
+                continue
             negate, item = self.consume_negation(item)
             if not negate:
                 positive = True
@@ -270,6 +275,8 @@ class CountryMatcher:
                     return False
                 else:
                     matched = True
+        if self.map.get_level(country) not in levels:
+            return False
         return matched or not positive
 
 
