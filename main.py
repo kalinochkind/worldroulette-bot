@@ -76,7 +76,7 @@ class Map:
             points[value[0]] += value[1]
         users = [{'id': i, 'name': self.players[i]['name'], 'countries': countries[i], 'points': points[i]}
                  for i in self.players if points[i]]
-        return sorted(users, key=lambda x: (-x['countries'], -x['points'], x['id']))
+        return sorted(users, key=lambda x: (-x['countries'], -x['points'], int(x['id'])))
 
     def is_mine(self, region):
         return self.world_state[region][0] in self.me
@@ -398,15 +398,20 @@ class Bot:
         for c in self.list_countries(objects, order):
             if not self.map.is_mine(c):
                 continue
+            players = {int(i[0]) for i in self.map.world_state.values()}
             res = ''
             while 'теперь принадлежит' not in res:
                 if uid == 'random':
-                    res = self.open('give', {'target': c, 'targetplid': random.randint(1, 3000)}, opener=0)
+                    target = random.randint(1, 3000)
+                    while target in players:
+                        target = random.randint(1, 3000)
+                    res = self.open('give', {'target': c, 'targetplid': target}, opener=0)
                 else:
                     res = self.open('give', {'target': c, 'targetplid': uid}, opener=0)
                 time.sleep(1)
             print(res)
             count += 1
+            self.update_map()
         print('Countries given:', count)
         self.update_map()
 
