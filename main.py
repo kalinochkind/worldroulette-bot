@@ -151,20 +151,37 @@ class ItemManager:
     def adjust_items(self):
         data = json.loads(self.open_proc('inventory'))
         total = defaultdict(float)
-        for item in sorted(data['items'], key=lambda x: x['uses'], reverse=True):
-            stats = self.parse_stats(item['stats'])
-            want = self.should_take(stats, total)
-            if want:
-                for i in stats:
-                    total[i] += stats[i]
-            if bool(want) != bool(item['enabled']):
+        items = sorted(data['items'], key=lambda x: x['uses'], reverse=True)
+        for item in items:
+            item['stats'] = self.parse_stats(item['stats'])
+            item['want'] = self.should_take(item['stats'], total)
+            if item['want']:
+                self.apply_stats(item['stats'], total)
+        for item in items:
+            if not item['want']:
+                continue
+            self.apply_stats(item['stats'], total, negate=True)
+            if self.should_take(item['stats'], total):
+                self.apply_stats(item['stats'], total)
+            else:
+                item['want'] = False
+        for item in items:
+            if item['want'] != bool(item['enabled']):
                 self.open_proc('toggleItem', {'aid': item['aid']})
-                print(('Enabling' if want else 'Disabling'), item['name_ru'])
+                print(('Enabling' if item['want'] else 'Disabling'), item['name_ru'])
 
     @staticmethod
     def parse_stats(stats):
         stats = [i.split('=') for i in stats.split('&')]
         return {i[0]: float(i[1]) for i in stats}
+
+    @staticmethod
+    def apply_stats(stats, total_stats, negate=False):
+        for i in stats:
+            if negate:
+                total_stats[i] -= stats[i]
+            else:
+                total_stats[i] += stats[i]
 
     @staticmethod
     def should_take(item_stats, total_stats):
