@@ -152,13 +152,15 @@ class ItemManager:
         data = json.loads(self.open_proc('inventory'))
         total = defaultdict(float)
         items = sorted(data['items'], key=lambda x: x['uses'], reverse=True)
+        min_lifetime = 2000
         for item in items:
             item['stats'] = self.parse_stats(item['stats'])
             item['want'] = self.should_take(item['stats'], total)
             if item['want']:
                 self.apply_stats(item['stats'], total)
+                min_lifetime = item['uses']
         for item in items:
-            if not item['want']:
+            if not item['want'] or item['uses'] > min_lifetime:
                 continue
             self.apply_stats(item['stats'], total, negate=True)
             if self.should_take(item['stats'], total):
