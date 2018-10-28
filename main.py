@@ -38,14 +38,23 @@ ARGS = parse_args()
 
 class SocketListener:
 
-     def __init__(self, session):
+    def __init__(self, session):
+        self.generation = 0
         self.session = session
-        self._thread = threading.Thread(target=self.monitor, daemon=True)
+        self.reconnect()
+
+    def monitor(self, generation):
+        sio = SocketIO(WS_HOST, WS_PORT, cookies={'session': self.session})
+        while generation == self.generation:
+            sio.wait(seconds=1)
+
+    def reconnect(self):
+        print('Connecting to WS')
+        self.generation += 1
+        self._thread = threading.Thread(target=self.monitor, args=(self.generation,), daemon=True)
         self._thread.start()
 
-     def monitor(self):
-        sio = SocketIO(WS_HOST, WS_PORT, cookies={'session': self.session})
-        sio.wait()
+
 
 
 class Map:
@@ -238,6 +247,9 @@ class Roller:
                 return ''
             if res['data'].startswith('Подождите немного'):
                 return ''
+            if res['data'].startswith('Ваш IP не был'):
+                time.sleep(1)
+                self.listener.reconnect()
             if res['data'] != self.last_error:
                 self.last_error = res['data']
                 return 'error'
