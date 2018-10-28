@@ -8,17 +8,23 @@ import sys
 import re
 import traceback
 import readline
+import threading
 from collections import defaultdict
 from functools import partial
 
 import requests
 
+from socketIO_client import SocketIO
+
 
 CAPTCHA_WAIT_INTERVAL = 25
-ROLL_INTERVAL = 1.1
+ROLL_INTERVAL = 1.05
 USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/53.0.2763.0 Safari/537.36'
 HOST = 'https://worldroulette.ru/'
 MAX_LEVEL = 3
+
+WS_HOST = 'https://socket.worldroulette.ru'
+WS_PORT = 444
 
 
 def parse_args():
@@ -28,6 +34,19 @@ def parse_args():
     return parser.parse_args()
 
 ARGS = parse_args()
+
+
+class SocketListener:
+
+     def __init__(self, session):
+        self.session = session
+        self._thread = threading.Thread(target=self.monitor, daemon=True)
+        self._thread.start()
+
+     def monitor(self):
+        sio = SocketIO(WS_HOST, WS_PORT, cookies={'session': self.session})
+        sio.wait()
+
 
 class Map:
 
@@ -195,11 +214,12 @@ class ItemManager:
 
 class Roller:
 
-    def __init__(self, open_proc):
+    def __init__(self, open_proc, socket_listener):
         self.open_proc = open_proc
         self.last_roll = 0
         self.last_non_captcha = 0
         self.last_error = None
+        self.listener = socket_listener
 
     def roll(self, target):
         now = time.time()
@@ -306,7 +326,7 @@ class Bot:
         self.mode = 'a'
         self.map = Map(self.conn.ids)
         self.matcher = CountryMatcher(self.map)
-        self.rollers = [Roller(partial(self.conn.open, opener=i)) for i in range(len(self.conn.ids))]
+        self.rollers = [Roller(partial(self.conn.open, opener=i), SocketListener(sessions[i])) for i in range(len(self.conn.ids))]
         self.item_managers = [ItemManager(partial(self.conn.open, opener=i)) for i in range(len(self.conn.ids))]
         self.map.add_map(self.open('world_mill_ru.js'))
         self.update_map()
