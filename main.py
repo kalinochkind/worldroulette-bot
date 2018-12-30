@@ -4,6 +4,7 @@ import argparse
 import json
 import time
 import random
+import logging
 import sys
 import re
 import traceback
@@ -16,6 +17,7 @@ import requests
 
 from socketIO_client import SocketIO
 
+logging.getLogger('socketIO-client').setLevel(logging.ERROR)
 
 CAPTCHA_WAIT_INTERVAL = 25
 ROLL_INTERVAL = 1.05
@@ -49,7 +51,6 @@ class SocketListener:
             sio.wait(seconds=1)
 
     def reconnect(self):
-        print('Connecting to WS')
         self.generation += 1
         self._thread = threading.Thread(target=self.monitor, args=(self.generation,), daemon=True)
         self._thread.start()
@@ -248,8 +249,9 @@ class Roller:
             if res['data'].startswith('Подождите немного'):
                 return ''
             if res['data'].startswith('Ваш IP не был'):
-                time.sleep(1)
                 self.listener.reconnect()
+                time.sleep(1)
+                return ''
             if res['data'] != self.last_error:
                 self.last_error = res['data']
                 return 'error'
