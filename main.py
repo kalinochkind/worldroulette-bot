@@ -368,7 +368,7 @@ class Bot:
             for num, roller in enumerate(self.rollers):
                 res = roller.roll(country)
                 if res == 'error':
-                    print('[{} - {}]'.format(self.conn.names[num], roller.last_error), end='', flush=True)
+                    print('[{}]'.format(roller.last_error), end='', flush=True)
                 elif res == 'done':
                     print('Conquered', flush=True)
         except Exception:
