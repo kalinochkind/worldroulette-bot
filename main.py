@@ -180,7 +180,8 @@ class ItemManager:
     def adjust_items(self):
         data = json.loads(self.open_proc('inventory'))
         total = defaultdict(float)
-        items = sorted(data['items'], key=lambda x: x['uses'], reverse=True)
+        items = [{**data['items'][str(i)], 'aid': i} for i in data['inventory']['items']]
+        items = sorted(items, key=lambda x: x['uses'], reverse=True)
         min_lifetime = 2000
         for item in items:
             item['stats'] = self.parse_stats(item['stats'])
@@ -198,7 +199,7 @@ class ItemManager:
                 item['want'] = False
         for item in items:
             if item['want'] != bool(item['enabled']):
-                self.open_proc('toggleItem', {'aid': item['aid']})
+                self.open_proc('toggleItem', {'id': item['aid']})
                 print(('Enabling' if item['want'] else 'Disabling'), item['name_ru'])
 
     @staticmethod
