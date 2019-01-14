@@ -166,7 +166,7 @@ class SessionManager:
                         resp = self.openers[opener].post(HOST + uri, headers=headers, data=params, timeout=3)
                 resp.encoding = 'UTF-8'
                 return resp.text
-            except Exception:
+            except Exception as e:
                 time.sleep(1)
                 self.auth()
         return ''
@@ -469,6 +469,16 @@ class Bot:
         print('Countries given:', count)
         self.update_map()
 
+    def wipe_chat(self, ts):
+        while True:
+            data = json.loads(self.open('chat?last=undefined', opener=0))
+            min_ts = min(int(i) for i in data['chat'])
+            if min_ts > ts:
+                return
+            self.open('write', {'msg': '/msg 0 a'}, opener=0)
+            time.sleep(1)
+
+
 ORDERS = ['random', 'large', 'small']
 
 def main():
@@ -500,6 +510,14 @@ def main():
         if not c:
             continue
         try:
+            if c[0] == 'wipe':
+                if len(c) != 2 or not c[1].isdigit():
+                    print('Timestamp required')
+                    continue
+                ts = int(c[1])
+                bot.wipe_chat(ts)
+                print()
+                continue
             if c[0] == 'give':
                 if len(c) < 2:
                     print('Usage: give (UID|random) [objects]\n')
