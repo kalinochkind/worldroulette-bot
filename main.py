@@ -188,9 +188,10 @@ class ItemManager:
             item['want'] = self.should_take(item['stats'], total)
             if item['want']:
                 self.apply_stats(item['stats'], total)
-                min_lifetime = item['uses']
+                if 'luck' not in item['stats']:
+                    min_lifetime = item['uses']
         for item in items:
-            if not item['want'] or item['uses'] > min_lifetime:
+            if not item['want'] or item['uses'] > min_lifetime or 'luck' in item['stats']:
                 continue
             self.apply_stats(item['stats'], total, negate=True)
             if self.should_take(item['stats'], total):
