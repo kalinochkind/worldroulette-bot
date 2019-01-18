@@ -174,6 +174,9 @@ class SessionManager:
 
 class ItemManager:
 
+    ACTIVE_STATS = ('luck', 'power_saving')
+    PASSIVE_STATS = ('defence',)
+
     def __init__(self, open_proc):
         self.open_proc = open_proc
 
@@ -188,10 +191,10 @@ class ItemManager:
             item['want'] = self.should_take(item['stats'], total)
             if item['want']:
                 self.apply_stats(item['stats'], total)
-                if 'luck' not in item['stats']:
+                if not any(i in item['stats'] for i in self.ACTIVE_STATS):
                     min_lifetime = item['uses']
         for item in items:
-            if not item['want'] or item['uses'] > min_lifetime or 'luck' in item['stats']:
+            if not item['want'] or item['uses'] > min_lifetime or any(i in item['stats'] for i in self.ACTIVE_STATS):
                 continue
             self.apply_stats(item['stats'], total, negate=True)
             if self.should_take(item['stats'], total):
@@ -216,12 +219,10 @@ class ItemManager:
             else:
                 total_stats[i] += stats[i]
 
-    @staticmethod
-    def should_take(item_stats, total_stats):
-        if item_stats.get('luck', 0) > 0 and total_stats['luck'] < 1.499:
-            return True
-        if item_stats.get('defence', 0) > 0 and total_stats['defence'] < 1.499:
-            return True
+    def should_take(self, item_stats, total_stats):
+        for stat in self.ACTIVE_STATS + self.PASSIVE_STATS:
+            if item_stats.get(stat, 0) > 0 and total_stats[stat] < 1.499:
+                return True
         return False
 
 class Roller:
@@ -298,7 +299,7 @@ class CountryMatcher:
             return True, item[1:]
         return False, item
 
-    def matches_one(self, country, item, online_list):
+    def matches_one(self, country, item, online_list, players):
         if country.startswith(item.upper()) or self.map.country_names[country].upper().startswith(item.upper()):
             return True
         if item == self.map.get_owner_id(country) or self.map.get_owner_name(country).upper().startswith(item.upper()):
@@ -311,9 +312,11 @@ class CountryMatcher:
                 return False
             if self.map.players[owner].get('fid') not in filter(bool, online_list.values()):
                 return True
+        if item.startswith('<=') and item[2:].isdigit() and players.get(self.map.get_owner_id(country), 0) <= int(item[2:]):
+            return True
         return False
 
-    def matches(self, country, object_list, online_list):
+    def matches(self, country, object_list, online_list, players):
         matched = False
         positive = False
         levels = [1, 2, 3]
@@ -325,7 +328,7 @@ class CountryMatcher:
             negate, item = self.consume_negation(item)
             if not negate:
                 positive = True
-            if self.matches_one(country, item, online_list):
+            if self.matches_one(country, item, online_list, players):
                 if negate:
                     return False
                 else:
@@ -406,7 +409,9 @@ class Bot:
         tmap = self.map.sorted_list(order)
         online_list = self.get_online()
         online_with_factions = lookup_factions(online_list, self.map.players, partial(self.conn.open, opener=0))
-        res = [name for name in tmap if self.matcher.matches(name, object_list, online_with_factions)]
+        players = self.map.get_player_list()
+        players = {i['id']: i['countries'] for i in players}
+        res = [name for name in tmap if self.matcher.matches(name, object_list, online_with_factions, players)]
         return res
 
 
