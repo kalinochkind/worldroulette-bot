@@ -41,13 +41,14 @@ ARGS = parse_args()
 
 with open('centroids.json') as f:
     CENTROIDS = json.load(f)
+with open('neighbors.json') as f:
+    NEIGHBORS = {k: set(v) for k, v in json.load(f).items()}
 
 
-def find_distances(bases, points):
-    res = []
-    for p in points:
-        res.append(min((i[0] - p[0]) ** 2 + (i[1] - p[1]) ** 2 for i in bases))
-    return res
+def find_distance(bases, point):
+    if not bases:
+        return float('inf')
+    return min((i[0] - point[0]) ** 2 + (i[1] - point[1]) ** 2 for i in bases)
 
 
 class SocketListener:
@@ -96,14 +97,12 @@ class Map:
     def sorted_list(self, order):
         countries = list(self.world_state)
         if order == 'near':
-            mine = [c for c in countries if self.world_state[c][0] in self.me]
-            if mine:
-                not_mine = [c for c in countries if self.world_state[c][0] not in self.me]
-                dists = sorted(zip(find_distances([CENTROIDS[i] for i in mine], [CENTROIDS[i] for i in not_mine]), not_mine))
-                random.shuffle(mine)
-                return mine + [i[1] for i in dists]
-            else:
-                order = 'random'
+            mine = {c for c in countries if self.world_state[c][0] in self.me}
+            not_mine = [c for c in countries if self.world_state[c][0] not in self.me]
+            random.shuffle(not_mine)
+            dists = sorted(((find_distance([CENTROIDS[i] for i in NEIGHBORS[c].intersection(mine)], CENTROIDS[c]), c) for c in not_mine),
+                           key=lambda x: x[0])
+            return sorted(mine, key=self._points_to_win) + [i[1] for i in dists]
         if order == 'random':
             random.shuffle(countries)
             countries.sort(key=self._points_to_win)
