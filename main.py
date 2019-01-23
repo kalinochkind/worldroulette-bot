@@ -14,8 +14,10 @@ from collections import defaultdict
 from functools import partial
 
 import requests
-
 from socketIO_client import SocketIO
+
+from utils import parse_map
+
 
 logging.getLogger('socketIO-client').setLevel(logging.ERROR)
 
@@ -37,6 +39,16 @@ def parse_args():
 
 ARGS = parse_args()
 
+with open('centroids.json') as f:
+    CENTROIDS = json.load(f)
+
+
+def find_distances(bases, points):
+    res = []
+    for p in points:
+        res.append(min((i[0] - p[0]) ** 2 + (i[1] - p[1]) ** 2 for i in bases))
+    return res
+
 
 class SocketListener:
 
@@ -56,8 +68,6 @@ class SocketListener:
         self._thread.start()
 
 
-
-
 class Map:
 
     def __init__(self, me):
@@ -68,10 +78,7 @@ class Map:
         self.players = {}
 
     def add_map(self, data):
-        if not data.startswith('jQuery.fn.vectorMap('):
-            return
-        data = data.replace('jQuery.fn.vectorMap(', '[').replace(');', ']').replace("'", '"')
-        data = json.loads(data)[2]['paths']
+        data = parse_map(data)
         self.country_names.update({i: data[i]['name'] for i in data})
         self.country_areas.update({i: float(data[i]['area']) for i in data})
 
@@ -86,8 +93,17 @@ class Map:
             return self.world_state[country][1] - 100
         return self.world_state[country][1]
 
-    def sorted_list(self, order='random'):
+    def sorted_list(self, order):
         countries = list(self.world_state)
+        if order == 'near':
+            mine = [c for c in countries if self.world_state[c][0] in self.me]
+            if mine:
+                not_mine = [c for c in countries if self.world_state[c][0] not in self.me]
+                dists = sorted(zip(find_distances([CENTROIDS[i] for i in mine], [CENTROIDS[i] for i in not_mine]), not_mine))
+                random.shuffle(mine)
+                return mine + [i[1] for i in dists]
+            else:
+                order = 'random'
         if order == 'random':
             random.shuffle(countries)
             countries.sort(key=self._points_to_win)
@@ -174,7 +190,7 @@ class SessionManager:
 
 class ItemManager:
 
-    ACTIVE_STATS = ('luck', 'power_saving')
+    ACTIVE_STATS = ('luck', 'power_saving', 'efficiency')
     PASSIVE_STATS = ('defence',)
 
     def __init__(self, open_proc):
@@ -183,7 +199,12 @@ class ItemManager:
     def adjust_items(self):
         data = json.loads(self.open_proc('inventory'))
         total = defaultdict(float)
-        items = [{**data['items'][str(i)], 'aid': i} for i in data['inventory']['items']]
+        items = [{'stats': data['items'][str(i)]['baseitem']['stats'],
+                  'uses': data['items'][str(i)]['uses'],
+                  'name_ru': data['items'][str(i)]['baseitem']['name_ru'],
+                  'enabled': data['items'][str(i)]['enabled'],
+                  'aid': i}
+                 for i in data['inventory']['items']]
         items = sorted(items, key=lambda x: x['uses'], reverse=True)
         min_lifetime = 2000
         for item in items:
@@ -303,7 +324,8 @@ class CountryMatcher:
         if country.startswith(item.upper()) or self.map.country_names[country].upper().startswith(item.upper()):
             return True
         if item == self.map.get_owner_id(country) or self.map.get_owner_name(country).upper().startswith(item.upper()):
-            return True
+            if item.upper() not in self.map.country_names:
+                return True
         if item.upper() == 'OFFLINE':
             if self.map.is_mine(country):
                 return True
@@ -485,7 +507,7 @@ class Bot:
             time.sleep(1)
 
 
-ORDERS = ['random', 'large', 'small']
+ORDERS = ['near', 'random', 'large', 'small']
 
 def main():
     if ARGS.sessions:
@@ -555,8 +577,6 @@ def main():
                 c = []
             c = list(map(str.upper, c))
             bot.update_map()
-            for country in bot.map.sorted_list():
-                bot.send_to_batya(country)
             bot.conquer(c, order)
             print()
         except KeyboardInterrupt:
