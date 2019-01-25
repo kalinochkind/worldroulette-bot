@@ -191,6 +191,7 @@ class ItemManager:
 
     ACTIVE_STATS = ('luck', 'power_saving', 'efficiency')
     PASSIVE_STATS = ('defence',)
+    STAT_LIMIT = {'efficiency': 0.1}
 
     def __init__(self, open_proc):
         self.open_proc = open_proc
@@ -241,7 +242,7 @@ class ItemManager:
 
     def should_take(self, item_stats, total_stats):
         for stat in self.ACTIVE_STATS + self.PASSIVE_STATS:
-            if item_stats.get(stat, 0) > 0 and total_stats[stat] < 1.499:
+            if item_stats.get(stat, 0) > 0 and total_stats[stat] < self.STAT_LIMIT.get(stat, 1.499):
                 return True
         return False
 
