@@ -120,7 +120,7 @@ class Map:
             points[value[0]] += value[1]
         users = [{'id': i, 'name': self.players[i]['name'], 'countries': countries[i], 'points': points[i]}
                  for i in self.players if points[i]]
-        return sorted(users, key=lambda x: (-x['countries'], -x['points'], int(x['id'])))
+        return sorted(users, key=lambda x: (-x['points'], -x['countries'], int(x['id'])))
 
     def is_mine(self, region):
         return self.world_state[region][0] in self.me
