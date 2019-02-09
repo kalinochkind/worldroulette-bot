@@ -477,6 +477,7 @@ class Bot:
             self.send_to_batya(c)
         self.update_map()
         count = 0
+        current_user = 1
         for c in self.list_countries(objects, order):
             if not self.map.is_mine(c):
                 continue
@@ -488,10 +489,17 @@ class Bot:
                     while target in players:
                         target = random.randint(1, 3000)
                     res = self.open('give', {'target': c, 'targetplid': target}, opener=0)
+                elif uid == 'seq':
+                    res = self.open('give', {'target': c, 'targetplid': current_user}, opener=0)
+                    if 'игрока не существует' in res:
+                        print('Fail', current_user)
+                        current_user += 1
                 else:
                     res = self.open('give', {'target': c, 'targetplid': uid}, opener=0)
-                time.sleep(1)
+                time.sleep(0.5)
+            current_user += 1
             print(res)
+            time.sleep(2)
             count += 1
             self.update_map()
         print('Countries given:', count)
