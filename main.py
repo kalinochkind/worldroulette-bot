@@ -35,6 +35,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Bot for worldroulette.ru')
     parser.add_argument('sessions', nargs='*', help='session cookies from your browser')
     parser.add_argument('-c', '--captcha', action='store_true', help='always captcha warnings')
+    parser.add_argument('-i', '--no-items', action='store_true', help='disable item management')
     return parser.parse_args()
 
 ARGS = parse_args()
@@ -197,6 +198,8 @@ class ItemManager:
         self.open_proc = open_proc
 
     def adjust_items(self):
+        if ARGS.no_items:
+            return
         data = json.loads(self.open_proc('inventory'))
         total = defaultdict(float)
         items = [{'stats': data['items'][str(i)]['baseitem']['stats'],
