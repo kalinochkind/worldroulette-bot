@@ -34,7 +34,6 @@ WS_PORT = 444
 def parse_args():
     parser = argparse.ArgumentParser(description='Bot for worldroulette.ru')
     parser.add_argument('sessions', nargs='*', help='session cookies from your browser')
-    parser.add_argument('-c', '--captcha', action='store_true', help='always captcha warnings')
     parser.add_argument('-i', '--no-items', action='store_true', help='disable item management')
     return parser.parse_args()
 
@@ -153,13 +152,13 @@ class SessionManager:
         for session in self.sessions:
             self.openers.append(requests.session())
             self.openers[-1].cookies['session'] = session
-            me = json.loads(self.open('getthis', {}, opener=-1))
+            me = json.loads(self.open('getthis', {}, opener=-1))['players']
             if not me:
                 print('Invalid session:', session)
                 sys.exit(-1)
             self.ids.append(str(list(me)[0]))
         data = self.open('getplayers?ids=[{}]'.format('%2C'.join(self.ids)), opener=0)
-        names = json.loads(data)
+        names = json.loads(data)['players']
         self.names = [names[id]['name'] for id in self.ids]
         self._auth_attempts = 0
 
@@ -270,7 +269,7 @@ class Roller:
             return ''
         res = json.loads(res)
         if res['result'] == 'error':
-            if (res['data'] == 'Недостаточно энергии' and not ARGS.captcha and
+            if (res['data'] == 'Недостаточно энергии' and
                     time.time() < self.last_non_captcha + CAPTCHA_WAIT_INTERVAL):
                 return ''
             if res['data'].startswith('Подождите немного'):
@@ -307,7 +306,7 @@ def lookup_factions(ids, players, open_proc):
     factions = {i: players[i].get('fid') or None for i in ids if i in players}
     remaining = [i for i in ids if i not in players]
     if remaining:
-        res = json.loads(open_proc('getplayers?ids=[' + ','.join(remaining) + ']'))
+        res = json.loads(open_proc('getplayers?ids=[' + ','.join(remaining) + ']'))['players']
         factions.update({i: res[i].get('fid') or None for i in remaining})
     return factions
 
