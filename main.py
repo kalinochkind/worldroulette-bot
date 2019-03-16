@@ -30,6 +30,10 @@ MAX_LEVEL = 3
 WS_HOST = 'https://socket.worldroulette.ru'
 WS_PORT = 444
 
+BUY_ITEM_ID = 3331
+BUY_ITEM_COUNT = 2
+GOOD_ITEM_NAME = 'Мешок с сокровищами'
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Bot for worldroulette.ru')
@@ -189,45 +193,50 @@ class SessionManager:
 
 class ItemManager:
 
-    ACTIVE_STATS = ('luck', 'power_saving', 'efficiency')
-    PASSIVE_STATS = ('defence',)
-    STAT_LIMIT = {'efficiency': 0.1}
 
     def __init__(self, open_proc):
         self.open_proc = open_proc
+        shopdata = json.loads(self.open_proc('shoplist'))
+        self.price = shopdata[str(BUY_ITEM_ID)]['price']
 
     def adjust_items(self):
         if ARGS.no_items:
             return
         data = json.loads(self.open_proc('inventory'))
-        total = defaultdict(float)
-        items = [{'stats': data['items'][str(i)]['baseitem']['stats'],
-                  'uses': data['items'][str(i)]['uses'],
-                  'name_ru': data['items'][str(i)]['baseitem']['name_ru'],
-                  'enabled': data['items'][str(i)]['enabled'],
-                  'aid': i}
-                 for i in data['inventory']['items']]
-        items = sorted(items, key=lambda x: x['uses'], reverse=True)
-        min_lifetime = 2000
-        for item in items:
-            item['stats'] = self.parse_stats(item['stats'])
-            item['want'] = self.should_take(item['stats'], total)
-            if item['want']:
-                self.apply_stats(item['stats'], total)
-                if not any(i in item['stats'] for i in self.ACTIVE_STATS):
-                    min_lifetime = item['uses']
-        for item in items:
-            if not item['want'] or item['uses'] > min_lifetime or any(i in item['stats'] for i in self.ACTIVE_STATS):
+        balance = list(data['players'].values())[0]['balance']
+
+        enabled = 0
+        for item in data['items'].values():
+            if item['baseitem']['id'] == BUY_ITEM_ID and item['enabled'] and item['uses'] >= 15:
+                enabled += 1
+            if item['baseitem']['name_ru'] == GOOD_ITEM_NAME:
                 continue
-            self.apply_stats(item['stats'], total, negate=True)
-            if self.should_take(item['stats'], total):
-                self.apply_stats(item['stats'], total)
-            else:
-                item['want'] = False
-        for item in items:
-            if item['want'] != bool(item['enabled']):
-                self.open_proc('toggleItem', {'id': item['aid']})
-                print(('Enabling' if item['want'] else 'Disabling'), item['name_ru'])
+            if item['baseitem']['laser_color']:
+                print('Setting laser color', item['baseitem']['laser_color'])
+                self.open_proc('toggleItem', {'id': item['id']})
+            old_balance = balance
+            print('Selling', item['baseitem']['name_ru'], end=' ')
+            self.open_proc('sellItem', {'id': item['id']})
+            data = json.loads(self.open_proc('inventory'))
+            balance = list(data['players'].values())[0]['balance']
+            print('for', balance - old_balance, 'coins')
+
+        while balance >= self.price:
+            print('Buying another bag')
+            self.open_proc('buyItem', {'id': BUY_ITEM_ID})
+            data = json.loads(self.open_proc('inventory'))
+            balance = list(data['players'].values())[0]['balance']
+
+        if enabled < BUY_ITEM_COUNT:
+            for item in data['items'].values():
+                if item['baseitem']['id'] == BUY_ITEM_ID and not item['enabled']:
+                    enabled += 1
+                    print('Enabling a bag')
+                    self.open_proc('toggleItem', {'id': item['id']})
+                    if enabled >= BUY_ITEM_COUNT:
+                        break
+
+
 
     @staticmethod
     def parse_stats(stats):
@@ -253,7 +262,6 @@ class Roller:
     def __init__(self, open_proc, socket_listener):
         self.open_proc = open_proc
         self.last_roll = 0
-        self.last_non_captcha = 0
         self.last_error = None
         self.listener = socket_listener
 
@@ -269,9 +277,6 @@ class Roller:
             return ''
         res = json.loads(res)
         if res['result'] == 'error':
-            if (res['data'] == 'Недостаточно энергии' and
-                    time.time() < self.last_non_captcha + CAPTCHA_WAIT_INTERVAL):
-                return ''
             if res['data'].startswith('Подождите немного'):
                 return ''
             if res['data'].startswith('Ваш IP не был'):
@@ -283,7 +288,6 @@ class Roller:
                 return 'error'
         else:
             self.last_error = None
-            self.last_non_captcha = time.time()
             if res['result'] == 'success':
                 combo = 1
                 num = re.search(r'\d{4}', res['data']).group(0)
