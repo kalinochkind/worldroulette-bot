@@ -22,7 +22,7 @@ from utils import parse_map
 logging.getLogger('socketIO-client').setLevel(logging.ERROR)
 
 CAPTCHA_WAIT_INTERVAL = 25
-ROLL_INTERVAL = 1.05
+ROLL_INTERVAL = 1.1
 USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/53.0.2763.0 Safari/537.36'
 HOST = 'https://worldroulette.ru/'
 MAX_LEVEL = 3
@@ -156,7 +156,7 @@ class SessionManager:
         for session in self.sessions:
             self.openers.append(requests.session())
             self.openers[-1].cookies['session'] = session
-            me = json.loads(self.open('getthis', {}, opener=-1))['players']
+            me = json.loads(self.open('getthis', {}, opener=-1)).get('players')
             if not me:
                 print('Invalid session:', session)
                 sys.exit(-1)
@@ -211,7 +211,7 @@ class ItemManager:
                 enabled += 1
             if item['baseitem']['name_ru'] == GOOD_ITEM_NAME:
                 continue
-            if item['baseitem']['laser_color']:
+            if item['baseitem']['laser_color'] and item['baseitem']['laser_color'] != '#FF0000':
                 print('Setting laser color', item['baseitem']['laser_color'])
                 self.open_proc('toggleItem', {'id': item['id']})
             old_balance = balance
