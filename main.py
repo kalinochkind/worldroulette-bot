@@ -6,6 +6,7 @@ import time
 import random
 import logging
 import sys
+import math
 import re
 import traceback
 import readline
@@ -100,12 +101,14 @@ class Map:
 
     def sorted_list(self, order):
         countries = list(self.world_state)
-        if order == 'near':
+        if order == 'near' or order == 'conn':
             mine = {c for c in countries if self.world_state[c][0] in self.me}
             not_mine = [c for c in countries if self.world_state[c][0] not in self.me]
             random.shuffle(not_mine)
             dists = sorted(((find_distance([CENTROIDS[i] for i in NEIGHBORS[c].intersection(mine)], CENTROIDS[c]), c) for c in not_mine),
                            key=lambda x: x[0])
+            if order == 'conn':
+                dists = [i for i in dists if math.isfinite(i[0])]
             return sorted(mine, key=self._points_to_win) + [i[1] for i in dists]
         if order == 'random':
             random.shuffle(countries)
@@ -533,7 +536,7 @@ class Bot:
             time.sleep(1)
 
 
-ORDERS = ['near', 'random', 'large', 'small']
+ORDERS = ['near', 'conn', 'random', 'large', 'small']
 
 def main():
     if ARGS.sessions:
@@ -557,7 +560,7 @@ def main():
                                                 for i in bot.map.get_player_list()))
         print()
         try:
-            c = input('Enter countries or users to conquer: ').split()
+            c = input('({})> '.format(order)).split()
         except EOFError:
             print()
             return
