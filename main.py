@@ -415,8 +415,14 @@ class Bot:
         print('\nConquering {} ({}), level {}, belongs to {}'.format(country, self.map.country_names[country],
                                                                      self.map.get_level(country),
                                                                      self.map.get_owner_name(country)))
+        rolls = 0
         while not self.map.is_mine(country):
             self.fight(country)
+            rolls += 1
+            if rolls > 40:
+                print('Too tired')
+                self.adjust_items()
+                return True
         self.send_to_batya(country)
         self.adjust_items()
         return True
@@ -426,8 +432,14 @@ class Bot:
             return False
         print('\nEmpowering {} ({}), level {}'.format(country, self.map.country_names[country],
                                                       self.map.get_level(country)))
+        rolls = 0
         while self.map.get_level(country) < MAX_LEVEL:
             self.fight(country)
+            rolls += 1
+            if rolls > 40:
+                print('Too tired')
+                self.adjust_items()
+                return True
         print()
         self.adjust_items()
         return True
