@@ -535,6 +535,19 @@ class Bot:
             self.open('write', {'msg': '/msg 0 a'}, opener=0)
             time.sleep(1)
 
+    def find_user(self, s):
+        start = 0
+        s = s.lower()
+        while True:
+            users = json.loads(self.open('getplayers?ids=[{}]'.format(','.join(map(str, range(start, start + 100))))))['players']
+            for uid, user in users.items():
+                if s in user['name'].lower():
+                    print(uid, user['name'])
+            start += 100
+            if not users:
+                return
+
+
 
 ORDERS = ['near', 'conn', 'random', 'large', 'small']
 
@@ -573,6 +586,13 @@ def main():
                     continue
                 ts = int(c[1])
                 bot.wipe_chat(ts)
+                print()
+                continue
+            if c[0] == 'find':
+                if len(c) != 2:
+                    print('Username reauired')
+                    continue
+                bot.find_user(c[1])
                 print()
                 continue
             if c[0] == 'give':
