@@ -7,6 +7,7 @@ import random
 import logging
 import sys
 import math
+import os
 import re
 import traceback
 import readline
@@ -16,6 +17,8 @@ from functools import partial
 
 import requests
 from socketIO_client import SocketIO
+from chromehack import get_session_cookie
+
 
 from utils import parse_map
 
@@ -50,21 +53,35 @@ with open('neighbors.json') as f:
     NEIGHBORS = {k: set(v) for k, v in json.load(f).items()}
 
 
+
 def find_distance(bases, point):
     if not bases:
         return float('inf')
     return min((i[0] - point[0]) ** 2 + (i[1] - point[1]) ** 2 for i in bases)
 
 
+class CredentialsManager:
+
+    def __init__(self):
+        with open('accounts.txt') as f:
+            self.session = f.read().strip()
+
+    def update_session(self, session):
+        self.session = session
+        with open('accounts.txt', 'w') as f:
+            f.write(session)
+
+credentials = CredentialsManager()
+
+
 class SocketListener:
 
-    def __init__(self, session):
+    def __init__(self):
         self.generation = 0
-        self.session = session
         self.reconnect()
 
     def monitor(self, generation):
-        sio = SocketIO(WS_HOST, WS_PORT, cookies={'session': self.session})
+        sio = SocketIO(WS_HOST, WS_PORT, cookies={'session': credentials.session})
         while generation == self.generation:
             sio.wait(seconds=1)
 
@@ -144,8 +161,7 @@ class Map:
 
 class SessionManager:
 
-    def __init__(self, sessions):
-        self.sessions = sessions
+    def __init__(self):
         self._auth_attempts = 0
         self.auth()
 
@@ -154,16 +170,19 @@ class SessionManager:
         if self._auth_attempts > 10:
             print('\nAuth failed')
             sys.exit(1)
-        self.openers = []
-        self.ids = []
-        for session in self.sessions:
-            self.openers.append(requests.session())
-            self.openers[-1].cookies['session'] = session
-            me = json.loads(self.open('getthis', {}, opener=-1)).get('players')
-            if not me:
-                print('Invalid session:', session)
-                sys.exit(-1)
-            self.ids.append(str(list(me)[0]))
+        self.openers = [requests.session()]
+        self.openers[-1].cookies['session'] = credentials.session
+        me = json.loads(self.open('getthis', {}, opener=-1)).get('players')
+        if not me:
+            print('Invalid session:', credentials.session)
+            new_session = get_session_cookie()
+            if new_session is not None and new_session != credentials.session:
+                print('Got session cookie from Chrome')
+                credentials.update_session(new_session)
+                self.auth()
+                return
+            sys.exit(-1)
+        self.ids = [str(list(me)[0])]
         data = self.open('getplayers?ids=[{}]'.format('%2C'.join(self.ids)), opener=0)
         names = json.loads(data)['players']
         self.names = [names[id]['name'] for id in self.ids]
@@ -371,12 +390,12 @@ class CountryMatcher:
 
 class Bot:
 
-    def __init__(self, sessions):
-        self.conn = SessionManager(sessions)
+    def __init__(self):
+        self.conn = SessionManager()
         self.mode = 'a'
         self.map = Map(self.conn.ids)
         self.matcher = CountryMatcher(self.map)
-        self.rollers = [Roller(partial(self.conn.open, opener=i), SocketListener(sessions[i])) for i in range(len(self.conn.ids))]
+        self.rollers = [Roller(partial(self.conn.open, opener=i), SocketListener()) for i in range(len(self.conn.ids))]
         self.item_managers = [ItemManager(partial(self.conn.open, opener=i)) for i in range(len(self.conn.ids))]
         self.map.add_map(self.open('world_mill_ru.js'))
         self.update_map()
@@ -553,16 +572,8 @@ ORDERS = ['near', 'conn', 'random', 'large', 'small']
 
 def main():
     if ARGS.sessions:
-        sessions = ARGS.sessions
-        with open('accounts.txt', 'w') as f:
-            f.write(' '.join(sessions))
-    else:
-        try:
-            sessions = open('accounts.txt').read().split()
-        except FileNotFoundError:
-            print('accounts.txt does not exist')
-            sys.exit()
-    bot = Bot(sessions)
+        credentials.update_session(ARGS.sessions[0])
+    bot = Bot()
     order = ORDERS[0]
     while True:
         bot.mode = 'a'
