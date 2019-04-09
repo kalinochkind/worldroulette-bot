@@ -173,7 +173,7 @@ class SessionManager:
         self.openers = [requests.session()]
         self.openers[-1].cookies['session'] = credentials.session
         me = json.loads(self.open('getthis', {}, opener=-1)).get('players')
-        if not me:
+        if not me or '10' in me:
             print('Invalid session:', credentials.session)
             new_session = get_session_cookie()
             if new_session is not None and new_session != credentials.session:
