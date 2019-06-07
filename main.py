@@ -20,8 +20,6 @@ import socketio
 from Crypto.Cipher import AES
 import struct
 
-from utils import parse_map
-
 
 ROLL_INTERVAL = 1.1
 USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/53.0.2763.0 Safari/537.36'
@@ -74,6 +72,8 @@ class Store:
         self.me = None
         self.users = {}
         self.countries = {}
+        self.clans = {}
+        self.online = set()
 
     def update_users(self, users):
         for u in users:
@@ -82,6 +82,19 @@ class Store:
     def update_countries(self, countries):
         for c in countries:
             self.countries[c['code']] = CountryOwner(c['owner'], c['power'])
+
+    def update_clans(self, clans):
+        for c in clans:
+            self.clans[c['id']] = c['name']
+
+    def update_online(self, online):
+        self.online = {int(u['user']) for u in online}
+
+    def add_online(self, online):
+        self.online.add(int(online['user']))
+
+    def remove_online(self, online):
+        self.online.discard(int(online))
 
     def is_mine(self, country):
         return self.countries[country][0] == self.me
@@ -94,6 +107,22 @@ class Store:
 
     def get_owner_name(self, country):
         return self.users[self.countries[country].user]['name']
+
+    def get_clan_id(self, user):
+        return self.users[user]['clan']
+
+    def get_clan_name(self, user):
+        clan = self.users[user]['clan']
+        return None if clan is None else self.clans[clan]
+
+    def get_user_representation(self, user):
+        name = self.users[user]['name']
+        clan = self.users[user]['clan']
+        if clan is None:
+            return name
+        else:
+            return '{} [{}]'.format(name, self.clans[clan])
+
 
 store = Store()
 
@@ -132,7 +161,7 @@ def get_player_list():
     for value in store.countries.values():
         countries[value.user] += 1
         points[value.user] += value.power
-    users = [{'id': i, 'name': store.users[i]['name'], 'countries': countries[i], 'points': points[i]}
+    users = [{'id': i, 'name': store.get_user_representation(i), 'countries': countries[i], 'points': points[i]}
                 for i in store.users if points[i]]
     return sorted(users, key=lambda x: (-x['points'], -x['countries'], int(x['id'])))
 
@@ -175,11 +204,19 @@ class SessionManager:
         store.me = msg
 
     def update_map(self, msg):
+        store.update_clans(msg.get('clans', []))
         store.update_users(msg.get('users', []))
         store.update_countries(msg.get('lands', []))
 
     def update_online(self, msg):
+        store.update_clans(msg.get('clans', []))
         store.update_users(msg.get('users', []))
+        if 'online' in msg:
+            store.update_online(msg['online'])
+        if 'changeOnline' in msg:
+            store.add_online(msg['changeOnline'])
+        if 'removeOnline' in msg:
+            store.remove_online(msg['removeOnline'])
 
     def notification(self, result, msg):
         match = ROLL_RESULT_RE.match(msg)
@@ -199,7 +236,6 @@ class SessionManager:
 
     def close(self):
         self.client.disconnect()
-
 
 
 class Roller:
@@ -226,11 +262,13 @@ def consume_negation(item):
 def matches_one(country, item):
     if item == '@':
         item = str(store.me)
-    if country.startswith(item.upper()) or COUNTRIES[country].name.upper().startswith(item.upper()):
+    if country.startswith(item.upper()) or COUNTRIES[country].name.upper().startswith(item):
         return True
-    if item == str(store.get_owner_id(country)) or store.get_owner_name(country).upper().startswith(item.upper()):
-        if item.upper() not in COUNTRIES:
-            return True
+    owner = store.get_owner_id(country)
+    if item == str(owner) or store.get_owner_name(country).upper().startswith(item):
+        return True
+    if item == 'C' + str(store.get_clan_id(owner)) or (store.get_clan_name(owner) or '').upper().startswith(item):
+        return True
     return False
 
 
@@ -268,7 +306,7 @@ class Bot:
             return False
         print('\nConquering {} ({}), level {}, belongs to {}'.format(country, COUNTRIES[country].name,
                                                                      store.get_power(country),
-                                                                     store.get_owner_name(country)))
+                                                                     store.get_user_representation(store.get_owner_id(country))))
         rolls = 0
         while not store.is_mine(country):
             self.roller.roll(country)
@@ -357,7 +395,12 @@ def main():
                     continue
                 if c[0] == 'list':
                     for c in bot.list_countries(list(map(str.upper, c[1:])), order):
-                        print(c.ljust(5), COUNTRIES[c][0])
+                        print(c.ljust(5), COUNTRIES[c].name)
+                    print()
+                    continue
+                if c[0] == 'clans':
+                    for c, name in sorted(store.clans.items()):
+                        print(str(c).ljust(4), name)
                     print()
                     continue
                 if c == ['*']:
