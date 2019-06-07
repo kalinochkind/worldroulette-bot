@@ -1,3 +1,2 @@
 requests
 socketio-client
-pycookiecheat==0.4.3
