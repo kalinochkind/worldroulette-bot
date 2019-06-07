@@ -421,10 +421,18 @@ def main():
                         print(str(c).ljust(4), name)
                     print()
                     continue
+                loop = False
+                if c[0] == 'loop':
+                    loop = True
+                    c = c[1:]
                 if c == ['*']:
                     c = []
                 c = list(map(str.upper, c))
-                bot.conquer(c, order, mode)
+                while True:
+                    bot.conquer(c, order, mode)
+                    if not loop:
+                        break
+                    time.sleep(1)
                 print()
             except KeyboardInterrupt:
                 print('Interrupting')
