@@ -99,6 +99,14 @@ class Store:
     def is_mine(self, country):
         return self.countries[country][0] == self.me
 
+    def is_online(self, user, include_clan=True):
+        if user in self.online:
+            return True
+        if include_clan and self.users[user]['clan']:
+            clan = self.users[user]['clan']
+            return any(self.users[u]['clan'] == clan for u in self.online)
+        return False
+
     def get_owner_id(self, country):
         return self.countries[country].user
 
@@ -118,14 +126,17 @@ class Store:
     def get_user_representation(self, user):
         name = self.users[user]['name']
         clan = self.users[user]['clan']
+        if user in self.online:
+            name = '*' + name
         if clan is None:
             return name
         else:
-            return '{} [{}]'.format(name, self.clans[clan])
-
+            clan = self.clans[clan]
+            if self.is_online(user):
+                clan = '*' + clan
+            return '{} [{}]'.format(name, clan)
 
 store = Store()
-
 
 
 def _points_to_win(country):
@@ -259,7 +270,7 @@ def consume_negation(item):
     return False, item
 
 
-def matches_one(country, item):
+def matches_one(country, item, online_cache):
     if item == '@':
         item = str(store.me)
     if country.startswith(item.upper()) or COUNTRIES[country].name.upper().startswith(item):
@@ -269,10 +280,16 @@ def matches_one(country, item):
         return True
     if item == 'C' + str(store.get_clan_id(owner)) or (store.get_clan_name(owner) or '').upper().startswith(item):
         return True
+    if item in  ['OFFLINE', 'ONLINE']:
+        if owner not in online_cache:
+            online_cache[owner] = store.is_online(owner)
+        if online_cache[owner] == (item == 'ONLINE'):
+            return True
+
     return False
 
 
-def matches(country, object_list):
+def matches(country, object_list, online_cache):
     matched = False
     positive = False
     levels = list(range(1, MAX_LEVEL + 1))
@@ -284,7 +301,7 @@ def matches(country, object_list):
         negate, item = consume_negation(item)
         if not negate:
             positive = True
-        if matches_one(country, item):
+        if matches_one(country, item, online_cache):
             if negate:
                 return False
             else:
@@ -334,7 +351,8 @@ class Bot:
 
     def list_countries(self, object_list, order):
         tmap = sorted_countries(order)
-        res = [name for name in tmap if matches(name, object_list)]
+        online_cache = {}
+        res = [name for name in tmap if matches(name, object_list, online_cache)]
         return res
 
 
