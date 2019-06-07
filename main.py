@@ -14,6 +14,7 @@ import sys
 import math
 import re
 import readline
+import os
 from collections import defaultdict, namedtuple
 
 import socketio
@@ -264,15 +265,28 @@ class Roller:
         time.sleep(0.3)
 
 
+class MatchingError(Exception):
+    pass
+
+
 def consume_negation(item):
     if item.startswith('-'):
         return True, item[1:]
     return False, item
 
 
-def matches_one(country, item, online_cache):
+def matches_one(country, item, cache):
     if item == '@':
         item = str(store.me)
+    if item.startswith('$'):
+        if item[1:] not in cache['aliases']:
+            if not is_alias_name(item[1:]):
+                raise MatchingError('Invalid alias name: ' + item)
+            countries = load_countries(item[1:])
+            if countries is None:
+                raise MatchingError('No such alias: ' + item)
+            cache['aliases'][item[1:]] = set(countries)
+        return country in cache['aliases'][item[1:]]
     if country.startswith(item.upper()) or COUNTRIES[country].name.upper().startswith(item):
         return True
     owner = store.get_owner_id(country)
@@ -280,16 +294,16 @@ def matches_one(country, item, online_cache):
         return True
     if item == 'C' + str(store.get_clan_id(owner)) or (store.get_clan_name(owner) or '').upper().startswith(item):
         return True
-    if item in  ['OFFLINE', 'ONLINE']:
-        if owner not in online_cache:
-            online_cache[owner] = store.is_online(owner)
-        if online_cache[owner] == (item == 'ONLINE'):
+    if item in ['OFFLINE', 'ONLINE']:
+        if owner not in cache['online']:
+            cache['online'][owner] = store.is_online(owner)
+        if cache['online'][owner] == (item == 'ONLINE'):
             return True
 
     return False
 
 
-def matches(country, object_list, online_cache):
+def matches(country, object_list, cache):
     matched = False
     positive = False
     levels = list(range(1, MAX_LEVEL + 1))
@@ -301,7 +315,7 @@ def matches(country, object_list, online_cache):
         negate, item = consume_negation(item)
         if not negate:
             positive = True
-        if matches_one(country, item, online_cache):
+        if matches_one(country, item, cache):
             if negate:
                 return False
             else:
@@ -351,8 +365,8 @@ class Bot:
 
     def list_countries(self, object_list, order):
         tmap = sorted_countries(order)
-        online_cache = {}
-        res = [name for name in tmap if matches(name, object_list, online_cache)]
+        cache = defaultdict(dict)
+        res = [name for name in tmap if matches(name, object_list, cache)]
         return res
 
 
@@ -373,6 +387,27 @@ class Bot:
                 return
             if not changed:
                 return
+
+
+ALIASES_DIR = 'aliases'
+
+
+def is_alias_name(name):
+    return name.replace('_', '').replace('-', '').isalnum()
+
+def save_countries(countries, name):
+    if not os.path.isdir(ALIASES_DIR):
+        os.mkdir(ALIASES_DIR)
+    with open(os.path.join(ALIASES_DIR, name), 'w') as f:
+        f.write(' '.join(countries))
+
+
+def load_countries(name):
+    try:
+        with open(os.path.join(ALIASES_DIR, name)) as f:
+            return f.read().split()
+    except FileNotFoundError:
+        return None
 
 
 ORDERS = ['near', 'conn', 'random', 'large', 'small']
@@ -421,6 +456,16 @@ def main():
                         print(str(c).ljust(4), name)
                     print()
                     continue
+                if c[0] == 'alias':
+                    if not is_alias_name(c[1]):
+                        print('Invalid alias name')
+                        print()
+                        continue
+                    countries = sorted(bot.list_countries(list(map(str.upper, c[2:])), None))
+                    save_countries(countries, c[1].upper())
+                    print('Saved')
+                    print()
+                    continue
                 loop = False
                 if c[0] == 'loop':
                     loop = True
@@ -434,6 +479,10 @@ def main():
                         break
                     time.sleep(1)
                 print()
+            except MatchingError as e:
+                print(e.args[0])
+                print()
+                continue
             except KeyboardInterrupt:
                 print('Interrupting')
                 continue
