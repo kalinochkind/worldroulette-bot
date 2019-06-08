@@ -410,6 +410,16 @@ def load_countries(name):
         return None
 
 
+def print_country_list(countries):
+    if not countries:
+        print('Nothing to list')
+        return
+    max_name = max(len(COUNTRIES[c].name) for c in countries)
+    for c in countries:
+        print('{} {}  {}'.format(c.ljust(5), COUNTRIES[c].name.ljust(max_name), store.get_user_representation(store.get_owner_id(c))))
+
+
+
 ORDERS = ['near', 'conn', 'random', 'large', 'small']
 MODES = ['a', 'c', 'e']
 
@@ -447,8 +457,7 @@ def main():
                         print()
                     continue
                 if c[0] == 'list':
-                    for c in bot.list_countries(list(map(str.upper, c[1:])), order):
-                        print(c.ljust(5), COUNTRIES[c].name)
+                    print_country_list(bot.list_countries(list(map(str.upper, c[1:])), order))
                     print()
                     continue
                 if c[0] == 'clans':
