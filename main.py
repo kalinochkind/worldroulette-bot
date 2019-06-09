@@ -419,6 +419,18 @@ def print_country_list(countries):
         print('{} {}  {}'.format(c.ljust(5), COUNTRIES[c].name.ljust(max_name), store.get_user_representation(store.get_owner_id(c))))
 
 
+def compare_lists(lhs, rhs):
+    lhs = set(lhs)
+    rhs = set(rhs)
+    plus = {c for c in rhs if c not in lhs}
+    minus = {c for c in lhs if c not in rhs}
+    print('Left:')
+    print_country_list(minus)
+    print()
+    print('Right:')
+    print_country_list(plus)
+    print()
+
 
 ORDERS = ['near', 'conn', 'random', 'large', 'small']
 MODES = ['a', 'c', 'e']
@@ -482,6 +494,11 @@ def main():
                 if c == ['*']:
                     c = []
                 c = list(map(str.upper, c))
+                if c.count('<>') == 1:
+                    lhs = bot.list_countries(c[:c.index('<>')], None)
+                    rhs = bot.list_countries(c[c.index('<>') + 1:], None)
+                    compare_lists(lhs, rhs)
+                    continue
                 while True:
                     bot.conquer(c, order, mode)
                     if not loop:
