@@ -272,7 +272,9 @@ class MatchingError(Exception):
 def consume_negation(item):
     if item.startswith('-'):
         return True, item[1:]
-    return False, item
+    if item.startswith('+'):
+        return False, item[1:]
+    return None, item
 
 
 def matches_one(country, item, cache):
@@ -313,13 +315,15 @@ def matches(country, object_list, cache):
                 levels = list(map(int, item[1:]))
             continue
         negate, item = consume_negation(item)
-        if not negate:
+        if negate is None:
             positive = True
         if matches_one(country, item, cache):
             if negate:
                 return False
             else:
                 matched = True
+        elif negate is False:
+            return False
     if store.get_power(country) not in levels:
         return False
     return matched or not positive
