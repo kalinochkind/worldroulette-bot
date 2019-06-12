@@ -293,7 +293,8 @@ def matches_one(country, item, cache):
         return True
     owner = store.get_owner_id(country)
     if item == str(owner) or store.get_owner_name(country).upper().startswith(item):
-        return True
+        if item.upper() not in COUNTRIES:
+            return True
     if item == 'C' + str(store.get_clan_id(owner)) or (store.get_clan_name(owner) or '').upper().startswith(item):
         return True
     if item in ['OFFLINE', 'ONLINE']:
@@ -357,7 +358,7 @@ class Bot:
         print('\nEmpowering {} ({}), level {}'.format(country, COUNTRIES[country].name,
                                                       store.get_power(country)))
         rolls = 0
-        while store.get_power(country) < MAX_LEVEL:
+        while store.is_mine(country) and store.get_power(country) < MAX_LEVEL:
             self.roller.roll(country)
             rolls += 1
             if rolls > 40:
@@ -412,6 +413,12 @@ def load_countries(name):
             return f.read().split()
     except FileNotFoundError:
         return None
+
+
+def list_aliases():
+    for name in os.listdir(ALIASES_DIR):
+        if os.path.isfile(os.path.join(ALIASES_DIR, name)) and is_alias_name(name):
+            print(name.lower())
 
 
 def print_country_list(countries):
@@ -482,6 +489,10 @@ def main():
                     print()
                     continue
                 if c[0] == 'alias':
+                    if len(c) < 2:
+                        list_aliases()
+                        print()
+                        continue
                     if not is_alias_name(c[1]):
                         print('Invalid alias name')
                         print()
