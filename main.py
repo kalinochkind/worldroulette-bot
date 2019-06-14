@@ -98,7 +98,12 @@ class Store:
         self.online.discard(int(online))
 
     def is_mine(self, country):
-        return self.countries[country][0] == self.me
+        if self.countries[country][0] == self.me:
+            return True
+        if (self.users[self.me]['clan'] is not None and
+                self.users[self.me]['clan'] == self.users[self.countries[country].user]['clan']):
+            return True
+        return False
 
     def is_online(self, user, include_clan=True):
         if user in self.online:
