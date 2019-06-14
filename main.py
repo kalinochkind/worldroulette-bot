@@ -32,6 +32,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Bot for worldroulette.ru')
     parser.add_argument('sessions', nargs='*', help='session cookies from your browser')
     parser.add_argument('-i', '--no-items', action='store_true', help='disable item management')
+    parser.add_argument('-g', '--guest', action='store_true', help='do not log in')
     return parser.parse_args()
 
 ARGS = parse_args()
@@ -210,10 +211,10 @@ class SessionManager:
         self.client.on('notification', self.notification)
         aes = AES.new(b'woro' * 8, AES.MODE_CTR, counter=ctr_keygen(self.client.sid.encode()[:16]))
         encrypted_fingerprint = aes.encrypt(credentials.fingerprint.encode())
-        self.client.emit('getAuth', (credentials.session, encrypted_fingerprint))
+        self.client.emit('getAuth', (None if ARGS.guest else credentials.session, encrypted_fingerprint))
         while store.me is None:
             time.sleep(0.1)
-        if store.me == 10:
+        if not ARGS.guest and store.me == 10:
             print('Auth failure')
             sys.exit(1)
 
