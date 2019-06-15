@@ -236,7 +236,7 @@ class SessionManager:
         if 'removeOnline' in msg:
             store.remove_online(msg['removeOnline'])
 
-    def notification(self, result, msg):
+    def notification(self, result, msg, *args):
         match = ROLL_RESULT_RE.match(msg)
         if match:
             num = match.group(1)
