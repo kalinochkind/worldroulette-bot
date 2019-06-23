@@ -33,6 +33,7 @@ def parse_args():
     parser.add_argument('sessions', nargs='*', help='session cookies from your browser')
     parser.add_argument('-i', '--no-items', action='store_true', help='disable item management')
     parser.add_argument('-g', '--guest', action='store_true', help='do not log in')
+    parser.add_argument('-p', '--password', help='login:password')
     return parser.parse_args()
 
 ARGS = parse_args()
@@ -202,7 +203,7 @@ def putchar(c):
 ROLL_RESULT_RE = re.compile(r'^Вам выпало (\d\d\d\d)')
 class SessionManager:
 
-    def __init__(self):
+    def __init__(self, loginpass=None):
         self.client = socketio.Client()
         self.client.connect(HOST)
         self.client.on('setUser', self.set_user_id)
@@ -210,13 +211,28 @@ class SessionManager:
         self.client.on('updateOnline', self.update_online)
         self.client.on('notification', self.notification)
         aes = AES.new(b'woro' * 8, AES.MODE_CTR, counter=ctr_keygen(self.client.sid.encode()[:16]))
-        encrypted_fingerprint = aes.encrypt(credentials.fingerprint.encode())
-        self.client.emit('getAuth', (None if ARGS.guest else credentials.session, encrypted_fingerprint))
-        while store.me is None:
-            time.sleep(0.1)
+        self.encrypted_fingerprint = aes.encrypt(credentials.fingerprint.encode())
+        self.get_auth(not ARGS.guest and not ARGS.password)
+        if loginpass:
+            login, password = loginpass.split(':', maxsplit=1)
+            self.client.on('setSession', self.set_session)
+            self.client.emit('sendAuth', ({'login': login, 'password': password, 'shouldCreate': False}, self.encrypted_fingerprint))
+            while store.me is not None:
+                time.sleep(0.1)
+            self.get_auth(True)
         if not ARGS.guest and store.me == 10:
             print('Auth failure')
             sys.exit(1)
+
+    def get_auth(self, add_session):
+        store.me = None
+        self.client.emit('getAuth', (credentials.session if add_session else None, self.encrypted_fingerprint))
+        while store.me is None:
+            time.sleep(0.1)
+
+    def set_session(self, session):
+        credentials.update_session(session)
+        store.me = None
 
     def set_user_id(self, msg):
         store.me = msg
@@ -237,6 +253,8 @@ class SessionManager:
             store.remove_online(msg['removeOnline'])
 
     def notification(self, result, msg, *args):
+        if msg == 'Неверный пароль!':
+            print(msg)
         match = ROLL_RESULT_RE.match(msg)
         if match:
             num = match.group(1)
@@ -455,7 +473,7 @@ MODES = ['a', 'c', 'e']
 def main():
     if ARGS.sessions:
         credentials.update_session(ARGS.sessions[0])
-    bot = Bot(SessionManager())
+    bot = Bot(SessionManager(ARGS.password or None))
     order = ORDERS[0]
     mode = MODES[0]
     try:
