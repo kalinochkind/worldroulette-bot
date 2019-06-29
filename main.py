@@ -5,6 +5,10 @@ from engineio.client import original_signal_handler
 
 signal.signal(signal.SIGINT, original_signal_handler)
 
+try:
+    import readline
+except ImportError:
+    pass
 
 import argparse
 import json
@@ -13,7 +17,6 @@ import random
 import sys
 import math
 import re
-import readline
 import os
 from collections import defaultdict, namedtuple
 
@@ -41,11 +44,11 @@ ARGS = parse_args()
 Country = namedtuple('Country', ('name', 'area'))
 CountryOwner = namedtuple('CountryOwner', ('user', 'power'))
 
-with open('centroids.json') as f:
+with open('centroids.json', encoding='utf8') as f:
     CENTROIDS = json.load(f)
-with open('neighbors.json') as f:
+with open('neighbors.json', encoding='utf8') as f:
     NEIGHBORS = {k: set(v) for k, v in json.load(f).items()}
-with open('map.json') as f:
+with open('map.json', encoding='utf8') as f:
     COUNTRIES = {k: Country(v['name'], v['area']) for k, v in json.load(f).items()}
 
 
@@ -58,12 +61,12 @@ def find_distance(bases, point):
 class CredentialsManager:
 
     def __init__(self):
-        with open('accounts.txt') as f:
+        with open('accounts.txt', encoding='utf8') as f:
             self.fingerprint, self.session = f.read().split()
 
     def update_session(self, session):
         self.session = session
-        with open('accounts.txt', 'w') as f:
+        with open('accounts.txt', 'w', encoding='utf8') as f:
             f.write(self.fingerprint + ' ' + session)
 
 credentials = CredentialsManager()
@@ -185,17 +188,6 @@ def get_player_list():
     return sorted(users, key=lambda x: (-x['points'], -x['countries'], int(x['id'])))
 
 
-def ctr_keygen(data):
-    def gen():
-        nonlocal data
-        t = data
-        x = struct.unpack('!QQ', data)
-        x = (x[0], x[1] + 1)
-        data = struct.pack('!QQ', *x)
-        return t
-    return gen
-
-
 def putchar(c):
     print(c, end='', flush=True)
 
@@ -210,7 +202,7 @@ class SessionManager:
         self.client.on('updateMap', self.update_map)
         self.client.on('updateOnline', self.update_online)
         self.client.on('notification', self.notification)
-        aes = AES.new(b'woro' * 8, AES.MODE_CTR, counter=ctr_keygen(self.client.sid.encode()[:16]))
+        aes = AES.new(b'woro' * 8, AES.MODE_CTR, nonce=b'', initial_value=self.client.sid.encode()[:16])
         self.encrypted_fingerprint = aes.encrypt(credentials.fingerprint.encode())
         self.get_auth(not ARGS.guest and not ARGS.password)
         if loginpass:
@@ -427,13 +419,13 @@ def is_alias_name(name):
 def save_countries(countries, name):
     if not os.path.isdir(ALIASES_DIR):
         os.mkdir(ALIASES_DIR)
-    with open(os.path.join(ALIASES_DIR, name), 'w') as f:
+    with open(os.path.join(ALIASES_DIR, name), 'w', encoding='utf8') as f:
         f.write(' '.join(countries))
 
 
 def load_countries(name):
     try:
-        with open(os.path.join(ALIASES_DIR, name)) as f:
+        with open(os.path.join(ALIASES_DIR, name), encoding='utf8') as f:
             return f.read().split()
     except FileNotFoundError:
         return None
@@ -489,6 +481,8 @@ def main():
             if not c:
                 continue
             try:
+                if c[0] == 'exit':
+                    break
                 if c[0].startswith('!'):
                     val = c[0][1:]
                     if val == '!':
