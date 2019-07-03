@@ -102,9 +102,11 @@ class Store:
     def remove_online(self, online):
         self.online.discard(int(online))
 
-    def is_mine(self, country):
+    def is_mine(self, country, allow_mates=True):
         if self.countries[country][0] == self.me:
             return True
+        if not allow_mates:
+            return False
         if (self.users[self.me]['clan'] is not None and
                 self.users[self.me]['clan'] == self.users[self.countries[country].user]['clan']):
             return True
@@ -159,8 +161,8 @@ def _points_to_win(country):
 def sorted_countries(order):
     countries = list(store.countries)
     if order == 'near' or order == 'conn':
-        mine = {c for c in countries if store.is_mine(c)}
-        not_mine = [c for c in countries if not store.is_mine(c)]
+        mine = {c for c in countries if store.is_mine(c, False)}
+        not_mine = [c for c in countries if not store.is_mine(c, False)]
         random.shuffle(not_mine)
         dists = sorted(((find_distance([CENTROIDS[i] for i in NEIGHBORS[c].intersection(mine)], CENTROIDS[c]), c) for c in not_mine),
                         key=lambda x: x[0])
