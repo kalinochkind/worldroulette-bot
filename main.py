@@ -317,8 +317,13 @@ def matches_one(country, item, cache):
         return True
     if item in ['OFFLINE', 'ONLINE']:
         if owner not in cache['online']:
-            cache['online'][owner] = store.is_online(owner)
+            cache['online'][owner] = store.is_online(owner, False)
         if cache['online'][owner] == (item == 'ONLINE'):
+            return True
+    if item in ['CLANOFFLINE', 'CLANONLINE']:
+        if owner not in cache['clanonline']:
+            cache['clanonline'][owner] = store.is_online(owner)
+        if cache['clanonline'][owner] == (item == 'CLANONLINE'):
             return True
 
     return False
