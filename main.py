@@ -353,7 +353,7 @@ def matches(country, object_list, cache):
             if negate:
                 consume(object_list)
                 return False
-            else:
+            elif negate is None:
                 matched = True
         elif negate is False:
             consume(object_list)
