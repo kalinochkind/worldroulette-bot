@@ -324,11 +324,20 @@ def matches_one(country, item, cache):
     return False
 
 
+def consume(object_list):
+    for item in object_list:
+        if item == ')':
+            return
+
+
 def matches(country, object_list, cache):
+    object_list = iter(object_list)
     matched = False
     positive = False
     levels = list(range(1, MAX_LEVEL + 1))
     for item in object_list:
+        if item == ')':
+            break
         if item.startswith('^'):
             if item[1:].isdigit():
                 levels = list(map(int, item[1:]))
@@ -336,12 +345,18 @@ def matches(country, object_list, cache):
         negate, item = consume_negation(item)
         if negate is None:
             positive = True
-        if matches_one(country, item, cache):
+        if item == '(':
+            success = matches(country, object_list, cache)
+        else:
+            success = matches_one(country, item, cache)
+        if success:
             if negate:
+                consume(object_list)
                 return False
             else:
                 matched = True
         elif negate is False:
+            consume(object_list)
             return False
     if store.get_power(country) not in levels:
         return False
