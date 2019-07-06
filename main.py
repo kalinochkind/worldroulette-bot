@@ -298,6 +298,8 @@ def consume_negation(item):
 def matches_one(country, item, cache):
     if item == '@':
         item = str(store.me)
+    elif item == '@@':
+        item = 'C' + str(store.get_clan_id(store.me))
     if item.startswith('$'):
         if item[1:] not in cache['aliases']:
             if not is_alias_name(item[1:]):
