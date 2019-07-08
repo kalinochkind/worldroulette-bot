@@ -152,31 +152,26 @@ class Store:
 store = Store()
 
 
-def _points_to_win(country):
-    if store.is_mine(country):
-        return store.countries[country][1] - 100
-    return store.countries[country][1]
-
-
 def sorted_countries(order):
-    countries = list(store.countries)
+    mine = [c for c in store.countries if store.is_mine(c, False)]
+    not_mine = [c for c in store.countries if not store.is_mine(c, False)]
     if order == 'near' or order == 'conn':
-        mine = {c for c in countries if store.is_mine(c, False)}
-        not_mine = [c for c in countries if not store.is_mine(c, False)]
         random.shuffle(not_mine)
-        dists = sorted(((find_distance([CENTROIDS[i] for i in NEIGHBORS[c].intersection(mine)], CENTROIDS[c]), c) for c in not_mine),
+        mine_set = set(mine)
+        dists = sorted(((find_distance([CENTROIDS[i] for i in NEIGHBORS[c].intersection(mine_set)], CENTROIDS[c]), c) for c in not_mine),
                         key=lambda x: x[0])
         if order == 'conn':
             dists = [i for i in dists if math.isfinite(i[0])]
-        return sorted(mine, key=_points_to_win) + [i[1] for i in dists]
+        return sorted(mine, key=store.get_power), [i[1] for i in dists]
     if order == 'random':
-        random.shuffle(countries)
-        countries.sort(key=_points_to_win)
+        random.shuffle(mine)
+        random.shuffle(not_mine)
+        return sorted(mine, key=store.get_power), sorted(not_mine, key=store.get_power)
     elif order == 'small':
-        countries.sort(key=lambda x: COUNTRIES[x].area)
+        return sorted(mine, key=lambda x: COUNTRIES[x].area), sorted(not_mine, key=lambda x: COUNTRIES[x].area)
     elif order == 'large':
-        countries.sort(key=lambda x: COUNTRIES[x].area, reverse=True)
-    return countries
+        return sorted(mine, key=lambda x: -COUNTRIES[x].area), sorted(not_mine, key=lambda x: -COUNTRIES[x].area)
+    return mine, not_mine
 
 
 def get_player_list():
@@ -377,55 +372,55 @@ class Bot:
         self.mode = 'a'
         self.roller = Roller(self.session)
 
-    def conquer_country(self, country):
-        if store.is_mine(country):
+    def conquer_country(self, country, limit):
+        if store.is_mine(country) or (limit < 0 and store.get_power(country) <= -limit):
             return False
         print('\nConquering {} ({}), level {}, belongs to {}'.format(country, COUNTRIES[country].name,
                                                                      store.get_power(country),
                                                                      store.get_user_representation(store.get_owner_id(country))))
         rolls = 0
-        while not store.is_mine(country):
+        while not store.is_mine(country) and (limit > 0 or store.get_power(country) > -limit):
             self.roller.roll(country)
             rolls += 1
-            if rolls > 40:
+            if rolls > 50:
                 print('Too tired')
                 return True
+        print()
         return True
 
-    def empower_country(self, country):
-        if not store.is_mine(country) or store.get_power(country) >= MAX_LEVEL:
+    def empower_country(self, country, limit):
+        if not store.is_mine(country) or store.get_power(country) >= limit:
             return False
         print('\nEmpowering {} ({}), level {}'.format(country, COUNTRIES[country].name,
                                                       store.get_power(country)))
         rolls = 0
-        while store.is_mine(country) and store.get_power(country) < MAX_LEVEL:
+        while store.is_mine(country) and store.get_power(country) < limit:
             self.roller.roll(country)
             rolls += 1
-            if rolls > 40:
+            if rolls > 50:
                 print('Too tired')
                 return True
         print()
         return True
 
 
-    def list_countries(self, object_list, order):
-        tmap = sorted_countries(order)
+    def list_countries(self, object_list, order=None, mode=None):
+        mine, not_mine = sorted_countries(order)
+        if mode == 'a':
+            tmap = not_mine + mine
+        else:
+            tmap = mine + not_mine
         cache = defaultdict(dict)
         res = [name for name in tmap if matches(name, object_list, cache)]
         return res
 
 
-    def conquer(self, object_list, order, mode):
+    def conquer(self, object_list, order, mode, limit):
         while True:
             changed = 0
-            for name in self.list_countries(object_list, order):
-                if mode == 'e':
-                    changed += self.empower_country(name)
-                elif mode == 'c':
-                    changed += self.conquer_country(name)
-                elif mode == 'a':
-                    changed += self.conquer_country(name)
-                    changed += self.empower_country(name)
+            for name in self.list_countries(object_list, order, mode):
+                changed += self.conquer_country(name, limit)
+                changed += self.empower_country(name, limit)
                 if changed:
                     break
             else:
@@ -484,7 +479,8 @@ def compare_lists(lhs, rhs):
 
 
 ORDERS = ['near', 'conn', 'random', 'large', 'small']
-MODES = ['a', 'c', 'e']
+MODES = ['d', 'a']
+
 
 def main():
     if ARGS.sessions:
@@ -492,13 +488,14 @@ def main():
     bot = Bot(SessionManager(ARGS.password or None))
     order = ORDERS[0]
     mode = MODES[0]
+    max_level = MAX_LEVEL
     try:
         while True:
             print('Users on the map:\n' + '\n'.join('[{id:4}] {name} ({countries}, {points})'.format(**i)
                                                     for i in get_player_list()))
             print()
             try:
-                c = input('({} {})> '.format(order, mode)).split()
+                c = input('({} {}{})> '.format(order, mode, max_level)).split()
             except EOFError:
                 print()
                 return
@@ -512,17 +509,20 @@ def main():
                     if val == '!':
                         order = ORDERS[0]
                         mode = MODES[0]
+                        max_level = MAX_LEVEL
                     elif val in ORDERS:
                         order = val
                     elif val in MODES:
                         mode = val
+                    elif val in {str(i) for i in range(-MAX_LEVEL + 1, MAX_LEVEL + 1) if i}:
+                        max_level = int(val)
                     else:
                         print('Available orders:', ', '.join(ORDERS))
                         print('Available modes:', ', '.join(MODES))
                         print()
                     continue
                 if c[0] == 'list':
-                    print_country_list(bot.list_countries(list(map(str.upper, c[1:])), order))
+                    print_country_list(bot.list_countries(list(map(str.upper, c[1:])), order, mode))
                     print()
                     continue
                 if c[0] == 'clans':
@@ -539,7 +539,7 @@ def main():
                         print('Invalid alias name')
                         print()
                         continue
-                    countries = sorted(bot.list_countries(list(map(str.upper, c[2:])), None))
+                    countries = sorted(bot.list_countries(list(map(str.upper, c[2:]))))
                     save_countries(countries, c[1].upper())
                     print('Saved')
                     print()
@@ -552,12 +552,12 @@ def main():
                     c = []
                 c = list(map(str.upper, c))
                 if c.count('<>') == 1:
-                    lhs = bot.list_countries(c[:c.index('<>')], None)
-                    rhs = bot.list_countries(c[c.index('<>') + 1:], None)
+                    lhs = bot.list_countries(c[:c.index('<>')])
+                    rhs = bot.list_countries(c[c.index('<>') + 1:])
                     compare_lists(lhs, rhs)
                     continue
                 while True:
-                    bot.conquer(c, order, mode)
+                    bot.conquer(c, order, mode, max_level)
                     if not loop:
                         break
                     time.sleep(1)
