@@ -44,18 +44,10 @@ ARGS = parse_args()
 Country = namedtuple('Country', ('name', 'area'))
 CountryOwner = namedtuple('CountryOwner', ('user', 'power'))
 
-with open('centroids.json', encoding='utf8') as f:
-    CENTROIDS = json.load(f)
 with open('neighbors.json', encoding='utf8') as f:
     NEIGHBORS = {k: set(v) for k, v in json.load(f).items()}
 with open('map.json', encoding='utf8') as f:
     COUNTRIES = {k: Country(v['name'], v['area']) for k, v in json.load(f).items()}
-
-
-def find_distance(bases, point):
-    if not bases:
-        return float('inf')
-    return min((i[0] - point[0]) ** 2 + (i[1] - point[1]) ** 2 for i in bases)
 
 
 class CredentialsManager:
@@ -158,10 +150,9 @@ def sorted_countries(order):
     if order == 'near' or order == 'conn':
         random.shuffle(not_mine)
         mine_set = set(mine)
-        dists = sorted(((find_distance([CENTROIDS[i] for i in NEIGHBORS[c].intersection(mine_set)], CENTROIDS[c]), c) for c in not_mine),
-                        key=lambda x: x[0])
+        dists = sorted(((-sum(n in mine for n in NEIGHBORS[c]), c) for c in not_mine), key=lambda x: x[0])
         if order == 'conn':
-            dists = [i for i in dists if math.isfinite(i[0])]
+            dists = [i for i in dists if i[0] < 0]
         return sorted(mine, key=store.get_power), [i[1] for i in dists]
     if order == 'random':
         random.shuffle(mine)
