@@ -18,11 +18,13 @@ import sys
 import math
 import re
 import os
+import threading
 from collections import defaultdict, namedtuple
 
 import socketio
 from Crypto.Cipher import AES
 import struct
+import requests
 
 
 ROLL_INTERVAL = 1.1
@@ -72,6 +74,7 @@ class Store:
         self.countries = {}
         self.clans = {}
         self.online = set()
+        self.captcha = None
 
     def update_users(self, users):
         for u in users:
@@ -93,6 +96,9 @@ class Store:
 
     def remove_online(self, online):
         self.online.discard(int(online))
+
+    def update_captcha(self, captcha):
+        self.captcha = captcha
 
     def is_mine(self, country, allow_mates=True):
         if self.countries[country][0] == self.me:
@@ -140,6 +146,9 @@ class Store:
             if self.is_online(user):
                 clan = '*' + clan
             return '{} [{}]'.format(name, clan)
+
+    def get_energy(self):
+        return self.users[self.me]['energy']
 
 store = Store()
 
@@ -190,6 +199,8 @@ class SessionManager:
         self.client.on('updateMap', self.update_map)
         self.client.on('updateOnline', self.update_online)
         self.client.on('notification', self.notification)
+        self.client.on('getCaptcha', self.get_captcha)
+        self.client.on('wrongCaptcha', self.get_captcha)
         aes = AES.new(b'woro' * 8, AES.MODE_CTR, nonce=b'', initial_value=self.client.sid.encode()[:16])
         self.encrypted_fingerprint = aes.encrypt(credentials.fingerprint.encode())
         self.get_auth(not ARGS.guest and not ARGS.password)
@@ -203,6 +214,7 @@ class SessionManager:
         if not ARGS.guest and store.me == 10:
             print('Auth failure')
             sys.exit(1)
+        self.client.emit('getCaptcha')
 
     def get_auth(self, add_session):
         store.me = None
@@ -246,6 +258,13 @@ class SessionManager:
                 putchar('#')
             else:
                 putchar('@')
+
+    def get_captcha(self, data=None):
+        if data:
+            store.update_captcha(data['bytes'])
+
+    def wrong_captcha(self, data):
+        self.client.emit('getCaptcha')
 
     def emit(self, command, *params):
         self.client.emit(command, tuple(params))
@@ -362,6 +381,8 @@ class Bot:
         self.session = session
         self.mode = 'a'
         self.roller = Roller(self.session)
+        self.watcher = threading.Thread(target=self.captcha_watcher, daemon=True)
+        self.watcher.start()
 
     def conquer_country(self, country, limit):
         if store.is_mine(country) or (limit < 0 and store.get_power(country) <= -limit):
@@ -419,6 +440,13 @@ class Bot:
             if not changed:
                 return
 
+    def captcha_watcher(self):
+        while True:
+            time.sleep(0.5)
+            if store.get_energy() < 10:
+                res = requests.post('https://bladdon.ru/solvecaptcha', data=store.captcha).text
+                self.session.emit('checkCaptcha', res)
+
 
 ALIASES_DIR = 'aliases'
 
@@ -467,6 +495,7 @@ def compare_lists(lhs, rhs):
     print('Right:')
     print_country_list(plus)
     print()
+
 
 
 ORDERS = ['near', 'conn', 'random', 'large', 'small']
