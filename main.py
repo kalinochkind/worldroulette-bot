@@ -442,10 +442,10 @@ class Bot:
 
     def captcha_watcher(self):
         while True:
-            time.sleep(0.5)
-            if store.get_energy() < 10:
+            if store.get_energy() <= 12:
                 res = requests.post('https://bladdon.ru/solvecaptcha', data=store.captcha).text
                 self.session.emit('checkCaptcha', res)
+            time.sleep(0.5)
 
 
 ALIASES_DIR = 'aliases'
