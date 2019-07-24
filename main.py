@@ -69,7 +69,7 @@ credentials = CredentialsManager()
 class Store:
 
     def __init__(self):
-        self.me = None
+        self.me = self._me = None
         self.users = {}
         self.countries = {}
         self.clans = {}
@@ -193,6 +193,9 @@ ROLL_RESULT_RE = re.compile(r'^Вам выпало (\d\d\d\d)')
 class SessionManager:
 
     def __init__(self, loginpass=None):
+        self.connect(loginpass)
+
+    def connect(self, loginpass=None):
         self.client = socketio.Client()
         self.client.connect(HOST)
         self.client.on('setUser', self.set_user_id)
@@ -200,7 +203,7 @@ class SessionManager:
         self.client.on('updateOnline', self.update_online)
         self.client.on('notification', self.notification)
         self.client.on('getCaptcha', self.get_captcha)
-        self.client.on('wrongCaptcha', self.get_captcha)
+        self.client.on('wrongCaptcha', self.wrong_captcha)
         aes = AES.new(b'woro' * 8, AES.MODE_CTR, nonce=b'', initial_value=self.client.sid.encode()[:16])
         self.encrypted_fingerprint = aes.encrypt(credentials.fingerprint.encode())
         self.get_auth(not ARGS.guest and not ARGS.password)
@@ -208,18 +211,18 @@ class SessionManager:
             login, password = loginpass.split(':', maxsplit=1)
             self.client.on('setSession', self.set_session)
             self.client.emit('sendAuth', ({'login': login, 'password': password, 'shouldCreate': False}, self.encrypted_fingerprint))
-            while store.me is not None:
+            while store._me is not None:
                 time.sleep(0.1)
             self.get_auth(True)
-        if not ARGS.guest and store.me == 10:
+        if not ARGS.guest and store._me == 10:
             print('Auth failure')
             sys.exit(1)
         self.client.emit('getCaptcha')
 
     def get_auth(self, add_session):
-        store.me = None
+        store._me = None
         self.client.emit('getAuth', (credentials.session if add_session else None, self.encrypted_fingerprint))
-        while store.me is None:
+        while store._me is None:
             time.sleep(0.1)
 
     def set_session(self, session):
@@ -228,6 +231,7 @@ class SessionManager:
 
     def set_user_id(self, msg):
         store.me = msg
+        store._me = msg
 
     def update_map(self, msg):
         store.update_clans(msg.get('clans', []))
@@ -263,8 +267,9 @@ class SessionManager:
         if data:
             store.update_captcha(data['bytes'])
 
-    def wrong_captcha(self, data):
-        self.client.emit('getCaptcha')
+    def wrong_captcha(self):
+        self.close()
+        self.connect()
 
     def emit(self, command, *params):
         self.client.emit(command, tuple(params))
@@ -442,8 +447,10 @@ class Bot:
 
     def captcha_watcher(self):
         while True:
-            if store.get_energy() <= 12:
-                res = requests.post('https://bladdon.ru/solvecaptcha', data=store.captcha).text
+            if store.get_energy() <= 15 and store.captcha:
+                captcha = store.captcha
+                store.captcha = None
+                res = requests.post('https://bladdon.ru/solvecaptcha', data=captcha).text
                 self.session.emit('checkCaptcha', res)
             time.sleep(0.5)
 
