@@ -49,7 +49,7 @@ CountryOwner = namedtuple('CountryOwner', ('user', 'power'))
 with open('neighbors.json', encoding='utf8') as f:
     NEIGHBORS = {k: set(v) for k, v in json.load(f).items()}
 with open('map.json', encoding='utf8') as f:
-    COUNTRIES = {k: Country(v['name'], v['area']) for k, v in json.load(f).items()}
+    COUNTRIES = {k: Country(v['name'], float(v['area'])) for k, v in json.load(f).items()}
 
 
 class CredentialsManager:
@@ -408,8 +408,9 @@ class Bot:
     def empower_country(self, country, limit):
         if not store.is_mine(country) or store.get_power(country) >= limit:
             return False
-        print('\nEmpowering {} ({}), level {}'.format(country, COUNTRIES[country].name,
-                                                      store.get_power(country)))
+        print('\nEmpowering {} ({}), level {}{}'.format(country, COUNTRIES[country].name,
+            store.get_power(country),
+            '' if store.is_mine(country, False) else ', belongs to ' + store.get_user_representation(store.get_owner_id(country))))
         rolls = 0
         while store.is_mine(country) and store.get_power(country) < limit:
             self.roller.roll(country)
