@@ -39,6 +39,7 @@ def parse_args():
     parser.add_argument('-i', '--no-items', action='store_true', help='disable item management')
     parser.add_argument('-g', '--guest', action='store_true', help='do not log in')
     parser.add_argument('-p', '--password', help='login:password')
+    parser.add_argument('-s', '--server', default='0')
     return parser.parse_args()
 
 ARGS = parse_args()
@@ -75,6 +76,10 @@ class Store:
         self.clans = {}
         self.online = set()
         self.captcha = None
+
+    def reset(self):
+        self.countries = {}
+        self.online = set()
 
     def update_users(self, users):
         for u in users:
@@ -192,36 +197,39 @@ def putchar(c):
 ROLL_RESULT_RE = re.compile(r'^Вам выпало (\d\d\d\d)')
 class SessionManager:
 
-    def __init__(self, loginpass=None):
-        self.connect(loginpass)
+    def __init__(self, loginpass=None, namespace=''):
+        self.namespace = '/' + namespace
+        self.lock = threading.Lock()
+        with self.lock:
+            self.connect(loginpass)
 
     def connect(self, loginpass=None):
         self.client = socketio.Client()
-        self.client.connect(HOST)
-        self.client.on('setUser', self.set_user_id)
-        self.client.on('updateMap', self.update_map)
-        self.client.on('updateOnline', self.update_online)
-        self.client.on('notification', self.notification)
-        self.client.on('getCaptcha', self.get_captcha)
-        self.client.on('wrongCaptcha', self.wrong_captcha)
-        aes = AES.new(b'woro' * 8, AES.MODE_CTR, nonce=b'', initial_value=self.client.sid.encode()[:16])
+        self.client.on('setUser', self.set_user_id, namespace=self.namespace)
+        self.client.on('updateMap', self.update_map, namespace=self.namespace)
+        self.client.on('updateOnline', self.update_online, namespace=self.namespace)
+        self.client.on('notification', self.notification, namespace=self.namespace)
+        self.client.on('getCaptcha', self.get_captcha, namespace=self.namespace)
+        self.client.on('wrongCaptcha', self.wrong_captcha, namespace=self.namespace)
+        self.client.connect(HOST, namespaces=[self.namespace])
+        aes = AES.new(b'woro' * 8, AES.MODE_CTR, nonce=b'', initial_value=(self.namespace + '#' + self.client.sid).encode()[:16])
         self.encrypted_fingerprint = aes.encrypt(credentials.fingerprint.encode())
         self.get_auth(not ARGS.guest and not ARGS.password)
         if loginpass:
             login, password = loginpass.split(':', maxsplit=1)
-            self.client.on('setSession', self.set_session)
-            self.client.emit('sendAuth', ({'login': login, 'password': password, 'shouldCreate': False}, self.encrypted_fingerprint))
+            self.client.on('setSession', self.set_session, namespace=self.namespace)
+            self.client.emit('sendAuth', ({'login': login, 'password': password, 'shouldCreate': False}, self.encrypted_fingerprint), namespace=self.namespace)
             while store._me is not None:
                 time.sleep(0.1)
             self.get_auth(True)
         if not ARGS.guest and store._me == 10:
             print('Auth failure')
             sys.exit(1)
-        self.client.emit('getCaptcha')
+        self.client.emit('getCaptcha', namespace=self.namespace)
 
     def get_auth(self, add_session):
         store._me = None
-        self.client.emit('getAuth', (credentials.session if add_session else None, self.encrypted_fingerprint))
+        self.client.emit('getAuth', (credentials.session if add_session else None, self.encrypted_fingerprint), namespace=self.namespace)
         while store._me is None:
             time.sleep(0.1)
 
@@ -268,14 +276,22 @@ class SessionManager:
             store.update_captcha(data['bytes'])
 
     def wrong_captcha(self):
-        self.close()
-        self.connect()
+        with self.lock:
+            self.close()
+            self.connect()
 
     def emit(self, command, *params):
-        self.client.emit(command, tuple(params))
+        with self.lock:
+            self.client.emit(command, tuple(params), namespace=self.namespace)
 
     def close(self):
         self.client.disconnect()
+
+    def change_namespace(self, namespace):
+        with self.lock:
+            self.close()
+            self.namespace = '/' + namespace
+            self.connect()
 
 
 class Roller:
@@ -513,7 +529,7 @@ MODES = ['d', 'a']
 def main():
     if ARGS.sessions:
         credentials.update_session(ARGS.sessions[0])
-    bot = Bot(SessionManager(ARGS.password or None))
+    bot = Bot(SessionManager(ARGS.password or None, namespace=ARGS.server))
     order = ORDERS[0]
     mode = MODES[0]
     max_level = MAX_LEVEL
@@ -523,7 +539,7 @@ def main():
                                                     for i in get_player_list()))
             print()
             try:
-                c = input('({} {}{})> '.format(order, mode, max_level)).split()
+                c = input('{} ({} {}{})> '.format(bot.session.namespace, order, mode, max_level)).split()
             except EOFError:
                 print()
                 return
@@ -532,6 +548,15 @@ def main():
             try:
                 if c[0] == 'exit':
                     break
+                if c[0].startswith('/'):
+                    num = c[0][1:]
+                    if num in ['0', '1', '2', '3', '']:
+                        store.reset()
+                        bot.session.change_namespace(num or bot.session.namespace[1:])
+                        print()
+                        continue
+                    print('Wrong server')
+                    continue
                 if c[0].startswith('!'):
                     val = c[0][1:]
                     if val == '!':
