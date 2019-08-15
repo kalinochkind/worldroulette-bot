@@ -74,6 +74,8 @@ class Store:
         self.users = {}
         self.countries = {}
         self.clans = {}
+        self.items = {}
+        self.base_items = {}
         self.online = set()
         self.captcha = None
 
@@ -104,6 +106,18 @@ class Store:
 
     def update_captcha(self, captcha):
         self.captcha = captcha
+
+    def update_items(self, base_items, items):
+        for bi in base_items:
+            if bi['drops']:
+                self.base_items[bi['id']] = bi['name']
+        for it in items:
+            if it['owner'] == self.me:
+                if not it['deleted']:
+                    if it['baseItem'] in self.base_items:
+                        self.items[it['id']] = self.base_items[it['baseItem']]
+                elif it['id'] in self.items:
+                    del self.items[it['id']]
 
     def is_mine(self, country, allow_mates=True):
         if self.countries[country][0] == self.me:
@@ -255,6 +269,8 @@ class SessionManager:
             store.add_online(msg['changeOnline'])
         if 'removeOnline' in msg:
             store.remove_online(msg['removeOnline'])
+        if 'items' in msg:
+            store.update_items(msg.get('baseItems', []), msg['items'])
 
     def notification(self, result, msg, *args):
         if msg == 'Неверный пароль!':
@@ -471,6 +487,12 @@ class Bot:
                 self.session.emit('checkCaptcha', res)
             time.sleep(0.5)
 
+    def sell_all(self):
+        for id, name in list(store.items.items()):
+            self.session.emit('sellItem', id)
+            print('Selling', name)
+            time.sleep(0.3)
+
 
 ALIASES_DIR = 'aliases'
 
@@ -573,6 +595,10 @@ def main():
                         print('Available orders:', ', '.join(ORDERS))
                         print('Available modes:', ', '.join(MODES))
                         print()
+                    continue
+                if c[0] == 'sellall':
+                    bot.sell_all()
+                    print()
                     continue
                 if c[0] == 'list':
                     print_country_list(bot.list_countries(list(map(str.upper, c[1:])), order, mode))
