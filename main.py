@@ -417,6 +417,7 @@ class Bot:
     def __init__(self, session):
         self.session = session
         self.mode = 'a'
+        self.tokens = -1
         self.roller = Roller(self.session)
         self.watcher = threading.Thread(target=self.captcha_watcher, daemon=True)
         self.watcher.start()
@@ -469,9 +470,14 @@ class Bot:
         while True:
             changed = 0
             for name in self.list_countries(object_list, order, mode):
+                if self.tokens == 0:
+                    print('No tokens left')
+                    return
                 changed += self.conquer_country(name, limit)
                 changed += self.empower_country(name, limit)
                 if changed:
+                    if self.tokens > 0:
+                        self.tokens -= 1
                     break
             else:
                 return
@@ -621,6 +627,20 @@ def main():
                     countries = sorted(bot.list_countries(list(map(str.upper, c[2:]))))
                     save_countries(countries, c[1].upper())
                     print('Saved')
+                    print()
+                    continue
+                if c[0] == 'tokens':
+                    if len(c) == 1:
+                        print(bot.tokens)
+                        print()
+                        continue
+                    try:
+                        tokens = int(c[1])
+                    except ValueError:
+                        print('Bad number of tokens')
+                        print()
+                        continue
+                    bot.tokens = tokens
                     print()
                     continue
                 loop = False
