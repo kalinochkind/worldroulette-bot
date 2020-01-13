@@ -228,14 +228,16 @@ class SessionManager:
         self.client.connect(HOST, namespaces=[self.namespace])
         aes = AES.new(b'woro' * 8, AES.MODE_CTR, nonce=b'', initial_value=(self.namespace + '#' + self.client.sid).encode()[:16])
         self.encrypted_fingerprint = aes.encrypt(credentials.fingerprint.encode())
-        self.get_auth(not ARGS.guest and not ARGS.password)
+        self.get_auth(not ARGS.guest and not loginpass)
         if loginpass:
             login, password = loginpass.split(':', maxsplit=1)
             self.client.on('setSession', self.set_session, namespace=self.namespace)
             self.client.emit('sendAuth', ({'login': login, 'password': password, 'shouldCreate': False}, self.encrypted_fingerprint), namespace=self.namespace)
             while store._me is not None:
                 time.sleep(0.1)
-            self.get_auth(True)
+            self.client.disconnect()
+            time.sleep(0.3)
+            return self.connect()
         if not ARGS.guest and store._me == 10:
             print('Auth failure')
             sys.exit(1)
@@ -249,7 +251,7 @@ class SessionManager:
 
     def set_session(self, session):
         credentials.update_session(session)
-        store.me = None
+        store._me = None
 
     def set_user_id(self, msg):
         store.me = msg
@@ -289,7 +291,7 @@ class SessionManager:
 
     def get_captcha(self, data=None):
         if data:
-            store.update_captcha(data['bytes'])
+            store.update_captcha(data['svg'])
 
     def wrong_captcha(self):
         with self.lock:
