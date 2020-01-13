@@ -488,12 +488,16 @@ class Bot:
 
     def captcha_watcher(self):
         while True:
-            if store.get_energy() <= 15 and store.captcha:
-                captcha = store.captcha
-                store.captcha = None
-                res = requests.post('https://bladdon.ru/solvecaptcha', data=captcha).text
-                self.session.emit('checkCaptcha', res)
-            time.sleep(0.5)
+            try:
+                if store.get_energy() <= 15 and store.captcha:
+                    captcha = store.captcha
+                    res = requests.post('https://bladdon.ru/solvecaptcha', data=captcha).text
+                    self.session.emit('checkCaptcha', res)
+                    store.captcha = None
+                time.sleep(0.5)
+            except Exception:
+                print('Captcha failed')
+                time.sleep(3)
 
     def sell_all(self):
         for id, name in list(store.items.items()):
