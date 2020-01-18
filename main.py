@@ -109,8 +109,7 @@ class Store:
 
     def update_items(self, base_items, items):
         for bi in base_items:
-            if bi['drops']:
-                self.base_items[bi['id']] = bi['name']
+            self.base_items[bi['id']] = bi['name']
         for it in items:
             if it['owner'] == self.me:
                 if not it['deleted']:
@@ -501,9 +500,17 @@ class Bot:
 
     def sell_all(self):
         for id, name in list(store.items.items()):
+            if name == 'Кейс':
+                continue
             self.session.emit('sellItem', id)
             print('Selling', name)
             time.sleep(0.3)
+
+    def open_case(self):
+        for id, name in list(store.items.items()):
+            if name == 'Кейс':
+                self.session.emit('openItem', id)
+                print('Opening')
 
 
 ALIASES_DIR = 'aliases'
@@ -612,6 +619,11 @@ def main():
                     bot.sell_all()
                     print()
                     continue
+                if c[0] == 'mine':
+                    while True:
+                        bot.open_case()
+                        bot.sell_all()
+                        time.sleep(0.5)
                 if c[0] == 'list':
                     print_country_list(bot.list_countries(list(map(str.upper, c[1:])), order, mode))
                     print()
